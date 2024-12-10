@@ -89,6 +89,8 @@ def data_collate_fn(batch, processor, cut_off_len):
     inputs['labels'] = labels_ids
     
     # print('text:', texts[0])
+    # print('input_ids shape:', inputs['input_ids'].shape)
+    # print('labels shape:', inputs['labels'].shape)
     # print('input_ids:', inputs['input_ids'][0].tolist())
     # print('labels:', inputs['labels'][0].tolist())
     # for b, c in zip(inputs['input_ids'][0].tolist(), inputs['labels'][0].tolist()):

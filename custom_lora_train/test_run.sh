@@ -9,7 +9,7 @@ LORA_ALPHA=16
 
 # 训练数据相关参数
 MIN_IMG_TOKENS=4
-MAX_IMG_TOKENS=100
+
 
 # 训练参数
 PER_DEVICE_TRAIN_BATCH_SIZE=1
@@ -32,10 +32,11 @@ REPORT_TO="tensorboard"
 
 
 #---------omniact----------#
-TRAIN_DATA_PATH="/home/shaotao/PROJECTS/VLM_AND_PHONE/custom_train_data/amex/amex_5k_func_custom_train.json"
+TRAIN_DATA_PATH="/home/shaotao/PROJECTS/VLM_AND_PHONE/data/amex/train/amex_5k_text.json"
 RUN_NAME="tmp"
 OUTPUT_DIR=custom_lora_saves/${RUN_NAME}
-
+CUT_OFF_LEN=1670
+MAX_IMG_TOKENS=1280
 
 # 执行训练脚本
 python lora_qwen2_vl.py \
@@ -61,5 +62,5 @@ python lora_qwen2_vl.py \
     --run_name ${RUN_NAME} \
     --num_workers 0 \
     --bf16 \
-    --cut_off_len 1290 
+    --cut_off_len ${CUT_OFF_LEN} 
     

@@ -26,16 +26,12 @@ def to_float_box(bbox, img_h, img_w):
 
 def judge(row):
     try:
-        pred_action = row['action']
         pred_args = row['args']
         gt = row['float_bbox']
-        if pred_action == 'click':
-            pt = ast.literal_eval(pred_args)
-            assert len(pt) == 2
-            x, y = pt[0] / 1000, pt[1] / 1000
-            return (x >= gt[0]) and (x <= gt[2]) and (y >= gt[1]) and (y <= gt[3])
-        else:
-            return False
+        pt = ast.literal_eval(pred_args)
+        assert len(pt) == 2
+        x, y = pt[0] / 1000, pt[1] / 1000
+        return (x >= gt[0]) and (x <= gt[2]) and (y >= gt[1]) and (y <= gt[3])
     except:
         logging.error(f"Error in judge: {row['action']}, {row['args']}")
     
@@ -112,4 +108,8 @@ if __name__ == '__main__':
         cm_data[3][device_lst.index(d) + 1] = acc
     acc = get_acc(df)
     cm_data[3][3] = acc
-    print(tabulate(cm_data, headers='firstrow', tablefmt='grid'))
+    out_str = str(tabulate(cm_data, headers='firstrow', tablefmt='grid'))
+    # save to text file
+    out_p = res_file_p.replace('.json', '_eval.txt')
+    with open(out_p, 'w') as f:
+        f.write(out_str)

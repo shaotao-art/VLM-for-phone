@@ -1,9 +1,14 @@
+import os
+import sys
+PROJECT_ROOT=os.path.dirname(os.path.abspath('.'))
+sys.path.append(PROJECT_ROOT)
 import cv2
 import ast
 import numpy as np
 from matplotlib import pyplot as plt
 from copy import deepcopy
 from typing import Tuple, List, Callable
+
 
 from utils.file_utils import save_image
 

@@ -18,9 +18,9 @@ from utils.file_utils import (read_image,
                               get_image_base64)
 from utils.img_ops import resize_image_short_side
 from utils.helper_utils import smart_resize
+from prompts import all_prompts
 
-# set your prompt here
-PROMPT = """"""
+
 
 def infer(client, model_name, prompt, img_p, temprature):
     image_np = read_image(img_p)
@@ -71,6 +71,7 @@ def parse_args():
     parser.add_argument('--debug', action='store_true', help='Run in debug mode with limited samples')
 
     parser.add_argument('--model_name', type=str, required=True, help='Model name to use for inference')
+    parser.add_argument('--prompt_type', type=str, required=True, help='prompt for the model')
     parser.add_argument('--phone_img_short_side_size', type=int, default=-1, help='Short side size for phone images')
     parser.add_argument('--pad_img_short_side_size', type=int, default=-1, help='Short side size for pad images')
     parser.add_argument('--use_smart_resize', action='store_true', help='Use smart resize for images')
@@ -96,10 +97,12 @@ if __name__ == '__main__':
     out_json_p = args.out_json_p
     img_root = args.img_root
     debug = args.debug
+    prompt_type = args.prompt_type
     temprature = args.temprature
     num_thread = args.num_thread
     max_img_tokens = args.max_img_tokens
     
+    PROMPT = all_prompts[prompt_type]
     
     if 'mobile' in inp_json_p:
         task = 'mobile'

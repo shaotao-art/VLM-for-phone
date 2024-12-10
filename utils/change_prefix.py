@@ -1,3 +1,7 @@
+import os
+import sys
+PROJECT_ROOT=os.path.dirname(os.path.abspath('.'))
+sys.path.append(PROJECT_ROOT)
 import argparse
 
 from utils.file_utils import read_json, save_json

@@ -1,3 +1,7 @@
+import os
+import sys
+PROJECT_ROOT=os.path.dirname(os.path.abspath('.'))
+sys.path.append(PROJECT_ROOT)
 from glob import glob
 from tqdm import tqdm
 import os
