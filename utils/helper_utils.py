@@ -4,15 +4,6 @@ import logging
 import torch
 
 
-def get_action_args(x: str) -> Tuple[str, str]:
-    try:
-        str_idx = x.index('(')
-        # find the last ')'
-        end_idx = x.rfind(')')
-        return x[:str_idx], x[str_idx+1:end_idx]
-    except:
-        logging.error(f'Error in split action and args: {x}')
-        return 'ERROR', 'ERROR'
 
 def float2_0_1000(x: float) -> str:
     if x == 1.0:

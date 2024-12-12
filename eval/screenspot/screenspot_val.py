@@ -33,7 +33,8 @@ def judge(row):
         x, y = pt[0] / 1000, pt[1] / 1000
         return (x >= gt[0]) and (x <= gt[2]) and (y >= gt[1]) and (y <= gt[3])
     except:
-        logging.error(f"Error in judge: {row['action']}, {row['args']}")
+        logging.error(f"Error in judge: {row['args']}")
+        return False
     
 def get_acc(df):
     if len(df) == 0:
