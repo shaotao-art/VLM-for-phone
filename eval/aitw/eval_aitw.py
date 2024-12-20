@@ -119,3 +119,15 @@ if __name__ == '__main__':
     cm_data[-1][-1] = get_acc(df)
     print('value1: action not match ratio \nvalue2: action match but args not match ratio')
     print(tabulate(cm_data, headers='firstrow', tablefmt='grid'))
+
+    out_file_p = data_p.replace('.json', '_eval.json')
+    res = {
+        'general': cm_data[-1][1],
+        'install': cm_data[-1][2],
+        'googleapps': cm_data[-1][3],
+        'single': cm_data[-1][4],
+        'webshopping': cm_data[-1][5],
+        'overall': cm_data[-1][-1],
+    }
+    # save into json file
+    save_json(res, out_file_p)

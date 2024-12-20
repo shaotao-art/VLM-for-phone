@@ -71,7 +71,7 @@ def parse_args():
     parser.add_argument('--debug', action='store_true', help='Run in debug mode with limited samples')
 
     parser.add_argument('--model_name', type=str, required=True, help='Model name to use for inference')
-    parser.add_argument('--prompt_type', type=str, required=True, help='prompt for the model')
+    parser.add_argument('--prompt_type', type=str, default='ground_prompt_for_val', help='prompt for the model')
     parser.add_argument('--phone_img_short_side_size', type=int, default=-1, help='Short side size for phone images')
     parser.add_argument('--pad_img_short_side_size', type=int, default=-1, help='Short side size for pad images')
     parser.add_argument('--use_smart_resize', action='store_true', help='Use smart resize for images')
@@ -117,7 +117,7 @@ if __name__ == '__main__':
         assert phone_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
         assert pad_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
     
-    os.makedirs('output_datas', exist_ok=True)
+    os.makedirs('out', exist_ok=True)
     out_json_p = f'out/{out_json_p}'
     
     client = OpenAI(

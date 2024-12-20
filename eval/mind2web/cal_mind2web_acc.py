@@ -137,11 +137,26 @@ if __name__ == '__main__':
         op_f_lst.append(g_f1)
     op_f1 = np.mean(op_f_lst)
 
+    ele_acc = round(ele_acc * 100, 1)
+    op_f1 = round(op_f1 * 100, 1)
+    step_sr = round(step_sr * 100, 1)
+    op_match_acc = round(op_match_acc * 100, 1)
     table = [['ele_acc', ele_acc],
             ['op_f1', op_f1],
             ['step_success', step_sr], 
             ['op_match_acc', op_match_acc]]
     print(tabulate.tabulate(table, tablefmt='grid'))
+
+    # save result to json
+    res = {
+        'ele_acc': ele_acc,
+        'op_f1': op_f1,
+        'step_success': step_sr,
+        'op_match_acc': op_match_acc
+    }
+    res_p = data_p.replace('.json', '_res.json')
+    with open(res_p, 'w') as f:
+        json.dump(res, f)
 
 
 

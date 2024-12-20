@@ -49,9 +49,12 @@ if __name__ == '__main__':
                                             min_pixels=min_pixels,
                                             max_pixels=max_pixels,)
 
-
-    with open(img_shape_pkl_p, 'rb') as f:
-        img_name2shape = pickle.load(f)
+    try:
+        with open(img_shape_pkl_p, 'rb') as f:
+            img_name2shape = pickle.load(f)
+    except:
+        print(f'always using {max_img_tokens} as the number of image tokens')
+        flag = True
     data = read_json(data_p)
 
     if data_format == 'custom':
@@ -64,10 +67,10 @@ if __name__ == '__main__':
                 img_name = '/'.join(img_p.split('/')[-2:])
             else:
                 img_name = os.path.basename(img_p)
-            h, w = img_name2shape[img_name]
+                
             prompt = processor.apply_chat_template(line['messages'],
-                                    tokenize=False,
-                                    add_generation_prompt=False)
+                        tokenize=False,
+                        add_generation_prompt=False)
 
             # only tokenize text 
             # we cal num of img tokens ourself
@@ -76,17 +79,16 @@ if __name__ == '__main__':
                 padding=False, 
                 return_tensors="pt"
             )
-            # print(prompt)
-            # for a in inputs.input_ids[0]:
-            #     b = processor.tokenizer.decode(a)
-            #     if b == '\n' or b == '\n\n':
-            #         b = 'newline'
-            #     if b.strip() == '':
-            #         b = 'space'
-            #     print(b, '->', a.item())
-            h_, w_ = smart_resize(height=h, width=w, max_pixels=max_img_tokens * 28 * 28)
-            single_img_tokens = h_ / 28 * w_ / 28
             num_text_tokens = inputs.input_ids.size(1)
+                    
+            if flag:
+                single_img_tokens = max_img_tokens
+            else:
+                h, w = img_name2shape[img_name]
+                h_, w_ = smart_resize(height=h, width=w, max_pixels=max_img_tokens * 28 * 28)
+                single_img_tokens = h_ / 28 * w_ / 28
+
+ 
             num_token_lst.append(num_text_tokens - 1 + single_img_tokens) 
             # -1 for <|image_pad|> in text tokens, which will be replaced by actual img tokens
 

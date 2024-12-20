@@ -7,8 +7,8 @@ from PIL import Image
 import time
 from colorama import Fore, Style, init
 
-from utils.file_utils import read_image, read_image_base64
-from utils.img_ops import resize_image_short_side
+from utils.file_utils import read_image, get_image_base64
+from utils.img_ops import smart_resize_img
 
 
 def create_client(base_url, api_key):
@@ -41,14 +41,14 @@ def main():
     ]
     
     max_message_history = 10  # 最多保留10条历史记录
-    img_short_side_size = 448
+    img_tokens = 1024
     
     client = create_client(
         base_url="http://localhost:8001/v1",
         api_key="shaotao"
     )
     
-    
+
     while True:
         text_inp = input(Fore.RED + "User 请输入text prompt: " + Style.RESET_ALL)
         if text_inp.lower() in ["q", "exit", "quit"]:
@@ -56,13 +56,15 @@ def main():
             break
         img_path = input("请输入图像路径（如无图像输入直接回车）: ").strip()
         if img_path.strip() != '':
+            img = read_image("data/elephant.jpg")
+            img = smart_resize_img(img, img_tokens)
             user_inp = {
                 "role": "user",
                 "content": [
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": read_image_base64(img_path, img_short_side_size),
+                            "url": get_image_base64(img),
                         },
                     },
                     {"type": "text", "text": text_inp},
