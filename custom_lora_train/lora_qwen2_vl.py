@@ -12,9 +12,11 @@ from functools import partial
 
 from vision_utils import process_vision_info
 
-from peft import LoraConfig, get_peft_model
-from transformers import Trainer, TrainingArguments
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from transformers import Trainer, TrainingArguments, BitsAndBytesConfig
 from accelerate import Accelerator
+
+
 
 
     
@@ -173,7 +175,7 @@ def get_args():
     parser.add_argument("--output_dir", type=str, required=True, help="output dir")
     parser.add_argument("--per_device_train_batch_size", type=int, default=1)
     parser.add_argument("--num_train_epochs", type=float, default=2.0)
-    parser.add_argument("--save_total_limit", type=int, default=5)
+    parser.add_argument("--save_total_limit", type=int, default=None)
     parser.add_argument("--save_steps", type=int, default=500)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=16)
@@ -185,6 +187,9 @@ def get_args():
     parser.add_argument("--eval_strategy", type=str, default="no",choices=["no", "steps", "epoch"])
     parser.add_argument("--report_to", nargs="+", default=["tensorboard"], help="report tool list")
     parser.add_argument("--run_name", type=str, required=True, help="experiment run name")
+    parser.add_argument("--qlora", action='store_true', help="use qlora")
+    parser.add_argument("--attn_impl", type=str, default='flash_attention_2', help="attention implementation")
+    parser.add_argument("--weight_decay", type=float, default=0, help="weight decay")
     
     args = parser.parse_args()
     return args
@@ -194,9 +199,14 @@ def train():
     accelerator = Accelerator()
     args = get_args()
     assert args.cut_off_len > args.max_img_tokens, 'cut off len should be larger than the number of max img token'
+
+    if torch.cuda.is_available():
+        n_gpus = torch.cuda.device_count()
     # print args in rank 0
     if accelerator.is_main_process:
         print("Training args:")
+        if n_gpus > 1:
+            print(f"  n_gpus: {n_gpus}")
         for k, v in vars(args).items():
             print(f"  {k}: {v}")
         # save args
@@ -207,11 +217,28 @@ def train():
 
     # load model
     model_path = args.model_path
+    
+    bnb_config = None
+    if args.qlora:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            # bnb_4bit_quant_storage=torch.bfloat16,
+        )
+    
+
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         model_path,
-        torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2" # need to change in old gpus
+        torch_dtype='auto',
+        # need to change in old gpus and can't use with qlora
+        attn_implementation=args.attn_impl if not args.qlora else 'sdpa',
+        quantization_config=bnb_config,
+        device_map='auto',
     )
+    if args.qlora:
+        model = prepare_model_for_kbit_training(model)
+    
     
     # use lora to train, get peft model
     lora_target_modules = get_lora_targets(model, freeze_vision_tower=args.freeze_vision_tower)
@@ -256,6 +283,7 @@ def train():
         report_to=args.report_to,
         run_name=args.run_name,
         dataloader_num_workers=args.num_workers,
+        weight_decay=args.weight_decay
     )
     trainer = Trainer(
         model=model,
