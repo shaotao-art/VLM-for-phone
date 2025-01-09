@@ -17,12 +17,12 @@ from utils.file_utils import (read_image,
                               save_json, 
                               get_image_base64)
 from utils.img_ops import resize_image_short_side
-from utils.helper_utils import smart_resize
+from utils.helper_utils import smart_resize, get_date_str
 from prompts import all_prompts
 
 
 
-def infer(client, model_name, prompt, img_p, temprature):
+def infer(client, model_name, instruction, img_p, temprature):
     image_np = read_image(img_p)
     ori_img_shape = image_np.shape[:2]
     h, w = ori_img_shape
@@ -36,23 +36,36 @@ def infer(client, model_name, prompt, img_p, temprature):
         else:
             # pad
             image_np = resize_image_short_side(image_np, pad_img_short_side_size)
-        
-        
+    
+    if image_first:
+        init_conv = [   
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": get_image_base64(image_np),
+                    },
+                },
+                {"type": "text", "text": PROMPT},
+                {"type": "text", "text": instruction}
+                    ]
+    else:
+        init_conv = [   
+                {"type": "text", "text": PROMPT},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": get_image_base64(image_np),
+                    },
+                },
+                {"type": "text", "text": instruction}
+            ]
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": get_image_base64(image_np),
-                        },
-                    },
-                    {"type": "text", "text": prompt},
-                ],
+                "content": init_conv
             },
         ],
         temperature=temprature,
@@ -68,10 +81,9 @@ def parse_args():
     parser.add_argument('--openai_api_base', type=str, required=True, help='OpenAI API base URL')
     parser.add_argument('--temprature', type=float, default=0.3, help='Temperature for the model')
     parser.add_argument('--num_thread', type=int, default=20, help='Number of threads to use for inference')
-    parser.add_argument('--debug', action='store_true', help='Run in debug mode with limited samples')
 
     parser.add_argument('--model_name', type=str, required=True, help='Model name to use for inference')
-    parser.add_argument('--prompt_type', type=str, default='ground_prompt_for_val', help='prompt for the model')
+    parser.add_argument('--prompt_type', type=str, default='showui_float', help='prompt for the model')
     parser.add_argument('--phone_img_short_side_size', type=int, default=-1, help='Short side size for phone images')
     parser.add_argument('--pad_img_short_side_size', type=int, default=-1, help='Short side size for pad images')
     parser.add_argument('--use_smart_resize', action='store_true', help='Use smart resize for images')
@@ -79,6 +91,7 @@ def parse_args():
     parser.add_argument('--out_json_p', type=str, required=True, help='Output JSON file path')
     parser.add_argument('--img_root', type=str, required=True, help='Root directory for images')
     parser.add_argument('--max_img_tokens', type=int, help='Maximum number of image tokens in test')
+    parser.add_argument('--image_first', action="store_true", default=False)
     return parser.parse_args()
 
     
@@ -96,11 +109,11 @@ if __name__ == '__main__':
     inp_json_p = args.inp_json_p
     out_json_p = args.out_json_p
     img_root = args.img_root
-    debug = args.debug
     prompt_type = args.prompt_type
     temprature = args.temprature
     num_thread = args.num_thread
     max_img_tokens = args.max_img_tokens
+    image_first = args.image_first
     
     PROMPT = all_prompts[prompt_type]
     
@@ -117,34 +130,36 @@ if __name__ == '__main__':
         assert phone_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
         assert pad_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
     
-    os.makedirs('out', exist_ok=True)
-    out_json_p = f'out/{out_json_p}'
+    
+    day_str = get_date_str()
+    out_root = os.path.join('out', day_str, model_name)
+    os.makedirs(out_root, exist_ok=True)
+    out_json_p = os.path.join(out_root, args.out_json_p)
+    if os.path.exists(out_json_p):
+        print(f"Output file already exists: {out_json_p}")
+        sys.exit(0)
     
     client = OpenAI(
             api_key=openai_api_key,
             base_url=openai_api_base,
         )
     
-
     data = read_json(inp_json_p)
-    prompt = PROMPT.format(instruction=data[0]['instruction'])
+    inst = data[0]['instruction']
     img_p = os.path.join(img_root, data[0]['img_filename'])
-    model_pred_ = infer(client, model_name, prompt, img_p, temprature)
+    model_pred_ = infer(client, model_name, inst, img_p, temprature)
     print(">>> sample data: \n" + str(data[0]))
     print(">>> sample img_p: \n" + img_p)
-    print(">>> sample prompt: \n" + prompt)
     print(">>> sample model_pred: \n" + model_pred_['pred'])
     
     # pack all params into list
     params = [(client, 
                 model_name,
-                PROMPT.format(instruction=data[d_idx]['instruction']), 
+                data[d_idx]['instruction'], 
                 os.path.join(img_root,
                             data[d_idx]['img_filename']),
                 temprature) for d_idx in range(len(data))]
-    if debug:
-        params = params[:20]
-    
+    # params = params[:20]
     print(f'len samples: {len(params)}')
     print(f'file out: {out_json_p}')
     
@@ -161,5 +176,4 @@ if __name__ == '__main__':
         out_line['model_pred'] = model_pred['pred']
         out_line['ori_img_shape'] = model_pred['img_shape']
         out.append(out_line)
-    if not debug:
-        save_json(out, out_json_p)
+    save_json(out, out_json_p)

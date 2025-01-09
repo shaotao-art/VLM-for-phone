@@ -30,7 +30,9 @@ def judge(row):
         gt = row['float_bbox']
         pt = ast.literal_eval(pred_args)
         assert len(pt) == 2
-        x, y = pt[0] / 1000, pt[1] / 1000
+        x, y = pt[0], pt[1]
+        if not((x >= 0) and (x <= 1) and (y >= 0) and (y <=1)):
+            x, y = pt[0] / 1000, pt[1] / 1000
         return (x >= gt[0]) and (x <= gt[2]) and (y >= gt[1]) and (y <= gt[3])
     except:
         logging.error(f"Error in judge: {row['args']}")

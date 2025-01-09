@@ -3,7 +3,12 @@ import math
 import logging
 import torch
 
+from datetime import date
 
+def get_date_str():
+    today = date.today()
+    formatted_date = today.strftime("%m-%d")
+    return formatted_date
 
 def float2_0_1000(x: float) -> str:
     if x == 1.0:
