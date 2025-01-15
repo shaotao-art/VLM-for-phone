@@ -8,20 +8,20 @@ import argparse
 import numpy as np
 from PIL import Image
 import yaml
+from functools import partial
+from typing import List
 
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
-from torch.utils.data import Dataset
-from functools import partial
-
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import Trainer, TrainingArguments, BitsAndBytesConfig
 from accelerate import Accelerator
+from qwen_vl_utils import process_vision_info
 
-from data_aug import random_crop_metadata
+
 from prompts import all_prompts
 from utils.file_utils import save_image
 from utils.helper_utils import get_date_str
-from typing import List
+from custom_dataset import GroundingDataset, AgentDataset
 
 random.seed(42)
 
@@ -53,128 +53,34 @@ def find_assistant_content_sublist_indexes(l):
                     break
     return list(zip(start_indexes, end_indexes))
 
-def make_conv_lst(init_prompt: str, 
-                inst_lst: List[str], 
-                ans_lst: List[str], 
-                img_first: bool):
-    conv_lst = []
-    
-    # first turn
-    if img_first:
-        first_line = dict(
-            role="user",
-            content=[
-                dict(type="image"),
-                dict(type="text", text=init_prompt),
-                dict(type="text", text=inst_lst[0])
-            ]
-        )
-    else:
-        first_line = dict(
-            role="user",
-            content=[
-                dict(type="text", text=init_prompt),
-                dict(type="image"),
-                dict(type="text", text=inst_lst[0])
-            ]
-        )  
-    conv_lst.append(first_line)
-    conv_lst.append(dict(
-        role="assistant",
-        content=[
-            dict(type="text", text=ans_lst[0])
-        ]
-    ))
-    
-    # other turns
-    for inst, ans in zip(inst_lst[1:], ans_lst[1:]):
-        user_turn = dict(
-            role="user",
-            content=[
-                dict(type="text", text=inst)
-            ]
-        )
-        assistant_turn = dict(
-            role="assistant",
-            content=[
-                dict(type="text", text=ans)
-            ]
-        )
-        conv_lst.append(user_turn)
-        conv_lst.append(assistant_turn)
-    return conv_lst
-    
-
-    
-class GroundingDataset(Dataset):
-    def __init__(self, 
-                 processor,
-                 data_path: str,
-                 img_root: str,
-                 init_prompt: str,
-                 img_first: bool,
-                 pt_format: str,
-                 ele_per_img: int,
-                 crop_min: float,
-                 crop_max: float):
-        super().__init__()
-        assert pt_format in ['float', 'int']
-        self.processor = processor
-        with open(data_path, "r") as f:
-            self.data = json.load(f)
-        self.img_root = img_root
-        self.init_prompt = init_prompt
-        self.img_first = img_first
-        self.point_format = pt_format
-        self.element_per_img = ele_per_img # <= 0 means all elements
-        self.crop_min = crop_min
-        self.crop_max = crop_max
-   
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        metadata = self.data[idx]
-        img_p = os.path.join(self.img_root, metadata['img_url'])
-        img = Image.open(img_p).convert('RGB')
-        if self.crop_min != 1.0 or self.crop_max != 1.0:
-            img, metadata = random_crop_metadata(img, metadata, (self.crop_min, self.crop_max))
-            # img.save(f'cropped_img_{idx}.jpg')
-
-        inst_lst = [_['instruction'] for _ in metadata['element']]
-        pt_lst = [_['point'] for _ in metadata['element']]
-        # shuffle inst_lst and pt_lst
-        shuffle_idx = list(range(len(inst_lst)))
-        random.shuffle(shuffle_idx)
-        # random sample elements
-        if self.element_per_img > 0:
-            shuffle_idx = shuffle_idx[:self.element_per_img]
-        inst_lst = [inst_lst[i] for i in shuffle_idx]
-        pt_lst = [pt_lst[i] for i in shuffle_idx]
         
-        if self.point_format == 'float':
-            pt_lst = [(round(pt[0], 2), round(pt[1], 2)) for pt in pt_lst]
-        elif self.point_format == 'int':
-            pt_lst = [(int(pt[0] * 1000), int(pt[1] * 1000)) for pt in pt_lst]
-        pt_lst = [f'[{pt[0]},{pt[1]}]' for pt in pt_lst]
-
-        conv_lst = make_conv_lst(self.init_prompt, inst_lst, pt_lst, self.img_first)
-        return dict(input_ids=dict(conv_lst=conv_lst, img=img))
-
-
-    
 
 def data_collate_fn(batch, cut_off_len, processor):
-    texts = [processor.apply_chat_template(msg['input_ids']['conv_lst'], 
-                                           tokenize=False, 
-                                           add_generation_prompt=False) for msg in batch]
-    imgs = [msg['input_ids']['img'] for msg in batch]
-    inputs = processor(
-        text=texts, 
-        images=imgs,
-        padding=True, 
-        return_tensors="pt"
-    )
+    if 'conv_lst' in batch[0]['input_ids']:
+        # for grounding dataset
+        texts = [processor.apply_chat_template(msg['input_ids']['conv_lst'], 
+                                            tokenize=False, 
+                                            add_generation_prompt=False) for msg in batch]
+        imgs = [msg['input_ids']['img'] for msg in batch]
+        inputs = processor(
+            text=texts, 
+            images=imgs,
+            padding=True, 
+            return_tensors="pt"
+        )
+    else:
+        # for agent dataset
+        messages = [m['input_ids']['messages'] for m in batch]
+        texts = [processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=False) for msg in messages]
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = processor(
+            text=texts,
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+    
     input_ids_lists = inputs['input_ids'].tolist()
 
     # get labels
@@ -191,7 +97,6 @@ def data_collate_fn(batch, cut_off_len, processor):
         inputs['input_ids'] = inputs['input_ids'][:, :cut_off_len]
         inputs['attention_mask'] = inputs['attention_mask'][:, :cut_off_len] 
         inputs['labels'] = inputs['labels'][:, :cut_off_len]
-    # print('data len: ', inputs['input_ids'].shape[1])
     return inputs
     
 
@@ -320,16 +225,21 @@ def train():
                                               padding_side="right")
 
     # get train dataset
-    train_dataset = GroundingDataset(processor=processor,
-                                     data_path=args.train_data_path,
-                                     img_root=args.img_root,
-                                     init_prompt=all_prompts[args.init_prompt],
-                                     img_first=args.img_first,
-                                     pt_format=args.pt_format,
-                                     ele_per_img=args.ele_per_img,
-                                     crop_min=args.crop_min,
-                                     crop_max=args.crop_max
-                                    )
+    if args.dataset_type == 'grounding':
+        train_dataset = GroundingDataset(data_path=args.train_data_path,
+                                        img_root=args.img_root,
+                                        init_prompt=all_prompts[args.init_prompt],
+                                        pt_format=args.pt_format,
+                                        ele_per_img=args.ele_per_img,
+                                        crop_min=args.crop_min,
+                                        crop_max=args.crop_max
+                                        )
+    elif args.dataset_type == 'agent':
+        train_dataset = AgentDataset(data_path=args.train_data_path)
+    else:
+        raise ValueError(f"dataset type {args.dataset_type} is not supported")
+    
+    
     if accelerator.is_main_process:
         print(f"train dataset size: {len(train_dataset)}")
         print('sample data:')
@@ -341,6 +251,8 @@ def train():
         from utils.draw_utils import draw_dot
         for i in range(len(gpts)):
             pt = eval(gpts[i]['content'][0]['text'])
+            if pt[0] > 1 or pt[1] > 1:
+                pt[0], pt[1] = pt[0]/1000, pt[1]/1000
             img = draw_dot(img, pt)
         save_image(img, 'sample_img_with_dot.jpg')
         
@@ -365,8 +277,8 @@ def train():
         dataloader_num_workers=args.num_workers,
         weight_decay=args.weight_decay,
         adam_beta1=args.adam_beta1,
-        adam_beta2=args.adam_beta2
-        # ddp_find_unused_parameters=False
+        adam_beta2=args.adam_beta2,
+        ddp_find_unused_parameters=args.ddp_find_unused_parameters
     )
     
 

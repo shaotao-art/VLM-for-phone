@@ -22,7 +22,7 @@ def get_message_infos(messages):
     return img_p, inst_lst, pt_lst
 
 def random_crop_metadata(img, metadata, scale_range=(0.5, 1.0)):
-    original_width, original_height = metadata['img_size']
+    original_width, original_height = img.size
     img_copy = img.copy()
     
     scale_w = random.uniform(*scale_range)

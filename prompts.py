@@ -1,43 +1,19 @@
-ground_prompt_for_train = """<image>Output the location of target element according to the given instruction.
-## Instruction
-{instruction}"""
+ground_prompt = """Output the location of target element according to the given screenshot and instruction.
+"""
 
-showui_float = """Based on the screenshot of the page, I give a text description and you give its corresponding location. The coordinate represents a clickable location [x, y] for an element, which is a relative coordinate on the screenshot, scaled from 0 to 1."""
-showui_int = """Based on the screenshot of the page, I give a text description and you give its corresponding location. The coordinate represents a clickable location [x, y] for an element, which is a relative coordinate on the screenshot, scaled from 1 to 1000."""
+box2func = """Output the functionality of target element according to the given screenshot and box.
+"""
 
-ground_prompt_continue = """## Instruction
-{instruction}"""
+box2func_with_som = """Output the functionality of target element marked by a box according to the given screenshot and box.
+"""
 
+box2func_with_ocr = """Output the functionality of target element according to the given screenshot, box and OCR result.
+"""
 
-box2func_prompt_for_train = """<image>Please output the functionality of the target element according to the given box.
-## Box
-({x1},{y1}),({x2},{y2})"""
+box2func_with_ocr_and_som = """Output the functionality of target element marked by a box according to the given screenshot, box and OCR result.
+"""
 
-box2func_prompt_continue = """## Box
-({x1},{y1}),({x2},{y2})"""
-
-
-pt2func_prompt_for_train = """<image>Please output the functionality of the target element according to the given point.
-## Point
-({x1},{y1})"""
-
-pt2func_prompt_continue = """## Point
-({x1},{y1})"""
-
-box2func_with_ocr_prompt_for_train = """<image>Please output the functionality of the target element according to the given box and ocr result.
-## Box
-({x1},{y1}),({x2},{y2})
-
-## OCR result
-{text}"""
-
-box2func_with_ocr_prompt_continue = """## Box
-({x1},{y1}),({x2},{y2})
-
-## OCR result
-{text}"""
-
-agent_prompt_for_train = """<image>Please generate the next move according to the given screenshot, instruction and previous actions. 
+agent_prompt_for_train = """Please generate the next move according to the given screenshot, instruction and previous actions. 
 
 ## Instruction: 
 {instruction}
@@ -47,14 +23,34 @@ agent_prompt_for_train = """<image>Please generate the next move according to th
 """
 
 
+short_answer_template = """{{"Function": {function}}}"""
+long_answer_template = """{{"Oberservation": {observation},  "Thoughts": {thoughts}, "Action": {action}, "Function": {function}}}"""
 
-all_prompts = {'ground_prompt_for_train': ground_prompt_for_train,
-               'agent_prompt_for_train': agent_prompt_for_train,
-               'box2func_prompt_for_train': box2func_prompt_for_train,
-               'box2func_with_ocr_prompt_for_train': box2func_with_ocr_prompt_for_train,
-               'ground_prompt_for_val': ground_prompt_for_train.replace('<image>', ''),
-               'agent_prompt_for_val': agent_prompt_for_train.replace('<image>', ''),
-               'box2func_prompt_for_val': box2func_prompt_for_train.replace('<image>', ''),
-               'box2func_with_ocr_prompt_for_val': box2func_with_ocr_prompt_for_train.replace('<image>', ''),
-               'showui_float': showui_float,
-               'showui_int': showui_int,}
+agent_multilvel_annotation_prompt = """Please generate the anly process according to the given screenshot, instruction, previous actions, gt element's infomation and GT action. target element's box is marked by a box in the screenshot and its bounding box is given below.
+
+## Instruction:
+{instruction}
+
+## Previous actions:
+{action_history}
+
+## Ground truth elements Box:
+({x1},{y1}),({x2},{y2})
+
+## GT action:
+type: {action_type}, value: {action_value}
+
+You need to generate the process to achieve the GT action on the GT element, your output should follow the format below:
+{{"Oberservation": "<The current state of the screen>",  "Thoughts": "<thinking process to complete the task according to the observation>", "action": "<the action you need to take to complete the task based on your anlysies>"}}
+"""
+
+
+
+all_prompts = dict(
+    ground_prompt=ground_prompt,
+    box2func=box2func,
+    box2func_with_som=box2func_with_som,
+    box2func_with_ocr=box2func_with_ocr,
+    box2func_with_ocr_and_som=box2func_with_ocr_and_som,
+    agent_prompt_for_train=agent_prompt_for_train
+)
