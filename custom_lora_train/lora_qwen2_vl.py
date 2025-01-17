@@ -21,7 +21,7 @@ from qwen_vl_utils import process_vision_info
 from prompts import all_prompts
 from utils.file_utils import save_image
 from utils.helper_utils import get_date_str
-from custom_dataset import GroundingDataset, AgentDataset
+from custom_dataset import GroundingDataset, Loc2FuncDataset, AgentDataset
 
 random.seed(42)
 
@@ -234,8 +234,20 @@ def train():
                                         crop_min=args.crop_min,
                                         crop_max=args.crop_max
                                         )
+    elif args.dataset_type == 'loc2func':
+        train_dataset = Loc2FuncDataset(data_path=args.train_data_path,
+                                        img_root=args.img_root,
+                                        init_prompt=all_prompts[args.init_prompt],
+                                        pt_format=args.pt_format,
+                                        ele_per_img=args.ele_per_img,
+                                        use_som=args.use_som,
+                                        use_ocr=args.use_ocr,
+                                        crop_min=args.crop_min,
+                                        crop_max=args.crop_max
+                                        )
     elif args.dataset_type == 'agent':
-        train_dataset = AgentDataset(data_path=args.train_data_path)
+        train_dataset = AgentDataset(data_path=args.train_data_path,
+                                     img_root=args.img_root)
     else:
         raise ValueError(f"dataset type {args.dataset_type} is not supported")
     
@@ -243,20 +255,23 @@ def train():
     if accelerator.is_main_process:
         print(f"train dataset size: {len(train_dataset)}")
         print('sample data:')
-        sample = train_dataset[0]['input_ids']
-        print(processor.apply_chat_template(sample['conv_lst'], tokenize=False, add_generation_prompt=False)[:1000])
-        img = np.array(sample['img'])
-        save_image(img, 'sample_img.jpg')
-        gpts = sample['conv_lst'][1::2]
-        from utils.draw_utils import draw_dot
-        for i in range(len(gpts)):
-            pt = eval(gpts[i]['content'][0]['text'])
-            if pt[0] > 1 or pt[1] > 1:
-                pt[0], pt[1] = pt[0]/1000, pt[1]/1000
-            img = draw_dot(img, pt)
-        save_image(img, 'sample_img_with_dot.jpg')
-        
-        
+        sample = train_dataset[2]['input_ids']
+        if args.dataset_type == 'agent':
+            print(processor.apply_chat_template(sample['messages'], tokenize=False, add_generation_prompt=False))
+        elif args.dataset_type == 'grounding':
+            print(processor.apply_chat_template(sample['conv_lst'], tokenize=False, add_generation_prompt=False))
+            img = np.array(sample['img'])
+            save_image(img, f'sample_img_{args.run_name}.jpg')
+            gpts = sample['conv_lst'][1::2]
+            from utils.draw_utils import draw_dot
+            for i in range(len(gpts)):
+                pt = eval(gpts[i]['content'][0]['text'])
+                if pt[0] > 1 or pt[1] > 1:
+                    pt[0], pt[1] = pt[0]/1000, pt[1]/1000
+                img = draw_dot(img, pt)
+            save_image(img, f'sample_img_{args.run_name}.jpg')
+            
+            
     training_args = TrainingArguments(
         output_dir=output_dir,
         per_device_train_batch_size=args.per_device_train_batch_size,

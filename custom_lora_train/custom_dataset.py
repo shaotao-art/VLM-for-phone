@@ -6,10 +6,10 @@ import os
 import sys
 from PIL import Image
 import numpy as np
-
 from typing import List
 
-sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE/')
+# sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE/')
+sys.path.append('/Users/starfish/Desktop/VLM_AND_PHONE')
 from utils.draw_utils import draw_box
 from utils.file_utils import save_image
 
@@ -17,6 +17,13 @@ from utils.file_utils import save_image
 def make_conv_lst(init_prompt: str, 
                 inst_lst: List[str], 
                 ans_lst: List[str]):
+    """conv format:
+    -> <img> + init_prompt + instruction 1
+    -> answer1
+    -> instruction 2
+    -> answer2
+    ...
+    """
     conv_lst = []
     
     # first turn
@@ -65,12 +72,17 @@ class GroundingDataset(Dataset):
         "element": [
             {
                 "instruction": "instruction text",
+                "box": [x1, y1, x2, y2]
                 "point": [x, y]
+                "text": "text in element"
             },
             ...
         ]
     }
     ...]
+    - cordinates are normlized to range 0-1
+    - text is optional 
+    - some small dataset may need data augmentation in grounding training
     """
     def __init__(self, 
                  data_path: str,
@@ -88,6 +100,7 @@ class GroundingDataset(Dataset):
         self.init_prompt = init_prompt
         self.point_format = pt_format
         self.element_per_img = ele_per_img # <= 0 means all elements
+        # data aug
         self.crop_min = crop_min
         self.crop_max = crop_max
    
@@ -125,19 +138,23 @@ class GroundingDataset(Dataset):
 
 
 class Loc2FuncDataset(Dataset):
-    """ONLY work for ONE image
-    expected data format:
+    """expected data format:
     [{
         "img_url": "path/to/img.jpg",
         "element": [
             {
                 "instruction": "instruction text",
+                "box": [x1, y1, x2, y2]
                 "point": [x, y]
+                "text": "text in element"
             },
             ...
         ]
     }
     ...]
+    - cordinates are normlized to range 0-1
+    - text is optional 
+    - some small dataset may need data augmentation in grounding training
     """
     def __init__(self, 
                  data_path: str,
@@ -145,8 +162,8 @@ class Loc2FuncDataset(Dataset):
                  init_prompt: str,
                  pt_format: str,
                  ele_per_img: int,
-                 use_som: bool=False,
-                 use_ocr: bool=False,
+                 use_som: bool,
+                 use_ocr: bool,
                  crop_min: float=1.0,
                  crop_max: float=1.0):
         super().__init__()
@@ -162,7 +179,7 @@ class Loc2FuncDataset(Dataset):
         # default do not use data augmentation
         self.crop_min = crop_min
         self.crop_max = crop_max
-   
+    
     def __len__(self):
         return len(self.data)
 
@@ -190,16 +207,14 @@ class Loc2FuncDataset(Dataset):
         
         if self.use_som:
             for pt in pt_lst:
-                img = draw_box(np.array(img), pt)
-                save_image(img, 'tmp.jpg')
-                
-                
+                img = draw_box(np.array(img), pt, color=(255, 0, 0))
+                # save_image(img, 'tmp.jpg')
+                   
         if self.point_format == 'float':
             pt_lst = [list(map(lambda x: round(x, 2), pt)) for pt in pt_lst]
         elif self.point_format == 'int':
             pt_lst = [list(map(lambda x: int(x * 1000), pt)) for pt in pt_lst]
-        # swap inst_lst and pt_lst to make it compatible with loc2func model
-        
+
         if self.use_ocr:
             pt_lst = [f'Box: ({pt[0]},{pt[1]}),({pt[2]},{pt[3]})\nText: {text}' for pt, text in zip(pt_lst, text_lst)]
         else: 

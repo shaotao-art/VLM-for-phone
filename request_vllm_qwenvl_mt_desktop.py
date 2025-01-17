@@ -1,8 +1,3 @@
-# import os
-# import sys
-# PROJECT_ROOT = os.path.dirname(os.path.abspath('..'))
-# sys.path.append(PROJECT_ROOT)
-
 from openai import OpenAI
 import os
 import cv2
@@ -25,6 +20,8 @@ def preprocess_image(img,
                      box, 
                      use_phone_crop, 
                      vis=False):
+    """- whether to use phone crop or not
+    - whether to visualize the box or not"""
     if use_phone_crop:
         h, w = img.shape[:2]
         box_in_float = [_ / 1000 for _ in box]
@@ -41,11 +38,11 @@ def preprocess_image(img,
         patch_h, patch_w = img.shape[:2]
         x1, y1, x2, y2 = new_box[0] / patch_w, new_box[1] / patch_h, new_box[2] / patch_w, new_box[3] / patch_h
         if vis == True:
-            img = draw_box(img, (x1, y1, x2, y2))
+            img = draw_box(img, (x1, y1, x2, y2), color=(255, 0, 0))
     else:
         box_in_float = [_ / 1000 for _ in box] 
         if vis == True:
-            img = draw_box(img, box_in_float)
+            img = draw_box(img, box_in_float, color=(255, 0, 0))
     return img
 
 def infer(client, model_name, prompt, img_p, box, use_phone_crop, vis, temprature):
@@ -95,7 +92,6 @@ def parse_args():
     parser.add_argument('--openai_api_base', type=str, required=True, help='OpenAI API base URL')
     parser.add_argument('--temprature', type=float, default=0.3, help='Temperature for the model')
     parser.add_argument('--num_thread', type=int, default=20, help='Number of threads to use for inference')
-    parser.add_argument('--debug', action='store_true', help='Run in debug mode with limited samples')
 
     parser.add_argument('--model_name', type=str, required=True, help='Model name to use for inference')
     parser.add_argument('--prompt_type', type=str, required=True, help='prompt for the model')
@@ -125,7 +121,6 @@ if __name__ == '__main__':
     inp_json_p = args.inp_json_p
     out_json_p = args.out_json_p
     img_root = args.img_root
-    debug = args.debug
     prompt_type = args.prompt_type
     temprature = args.temprature
     num_thread = args.num_thread
@@ -134,7 +129,7 @@ if __name__ == '__main__':
     vis = args.vis
     
     if 'vis' in prompt_type:
-        vis = True
+        assert vis == True
     PROMPT = all_prompts[prompt_type]
     
             
@@ -152,7 +147,6 @@ if __name__ == '__main__':
     
 
     data = read_json(inp_json_p)
-    # import pdb; pdb.set_trace()
     
     img_p = os.path.join(img_root, data[0]['img_name'])
     box = data[0]['box']
@@ -182,17 +176,24 @@ if __name__ == '__main__':
     # pack all params into list
     params = [(client, 
                 model_name,
-                PROMPT.format(x1=int_box_lst[d_idx][0], y1=int_box_lst[d_idx][1], x2=int_box_lst[d_idx][2], y2=int_box_lst[d_idx][3]) \
+                PROMPT.format(x1=int_box_lst[d_idx][0], 
+                              y1=int_box_lst[d_idx][1], 
+                              x2=int_box_lst[d_idx][2], 
+                              y2=int_box_lst[d_idx][3]) \
                     if 'ocr' not in prompt_type else \
-                        PROMPT.format(x1=int_box_lst[d_idx][0], y1=int_box_lst[d_idx][1], x2=int_box_lst[d_idx][2], y2=int_box_lst[d_idx][3], text=data[d_idx]['text']),
+                        PROMPT.format(x1=int_box_lst[d_idx][0], 
+                                      y1=int_box_lst[d_idx][1], 
+                                      x2=int_box_lst[d_idx][2], 
+                                      y2=int_box_lst[d_idx][3], 
+                                      text=data[d_idx]['text']),
                 os.path.join(img_root,
                             data[d_idx]['img_name']),
                 int_box_lst[d_idx],
                 use_phone_crop,
                 vis,
                 temprature) for d_idx in range(len(data))]
-    if debug:
-        params = params[:20]
+
+    # params = params[:200]
     
     print(f'len samples: {len(params)}')
     print(f'file out: {out_json_p}')
@@ -210,5 +211,5 @@ if __name__ == '__main__':
         out_line['model_pred'] = model_pred['pred']
         out_line['ori_img_shape'] = model_pred['img_shape']
         out.append(out_line)
-    if not debug:
-        save_json(out, out_json_p)
+    
+    save_json(out, out_json_p)

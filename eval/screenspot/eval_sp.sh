@@ -1,20 +1,24 @@
 #!/bin/bash
-MODEL_NAME='amex-5k-mtfunc'
-PASER_METHOD='kuohao'
-TEST_IMG_TOKENS=1280
+# Parse arguments
+while getopts m:p:t:r: flag
+do
+    case "${flag}" in
+        m) model_name=${OPTARG};;
+        p) parse_method=${OPTARG};;
+        t) max_img_tokens=${OPTARG};;
+        r) temprature=${OPTARG};;
+    esac
+done
 
-##--------------before run----------------##
-##      CHANGE PROMPT IN VAL SCRIPT       ##
-##--------------before run----------------## 
+formatted_date=$(date +"%m-%d")
+inp_json_p=./out/${formatted_date}/${model_name}/sp_mobile_m_${model_name}_itm_${max_img_tokens}-t_${temprature}.json
+python screenspot_val.py --res_file_p ${inp_json_p} \
+    --method ${parse_method}
 
-INPUT_FILE=./out/sp_mobile_m_${MODEL_NAME}_itm_${TEST_IMG_TOKENS}.json
-python screenspot_val.py --res_file_p ${INPUT_FILE} \
-    --method ${PASER_METHOD}
+inp_json_p=./out/${formatted_date}/${model_name}/sp_desktop_m_${model_name}_itm_${max_img_tokens}-t_${temprature}.json
+python screenspot_val.py --res_file_p ${inp_json_p} \
+    --method ${parse_method}
 
-INPUT_FILE=./out/sp_desktop_m_${MODEL_NAME}_itm_${TEST_IMG_TOKENS}.json
-python screenspot_val.py --res_file_p ${INPUT_FILE} \
-    --method ${PASER_METHOD}
-
-INPUT_FILE=./out/sp_web_m_${MODEL_NAME}_itm_${TEST_IMG_TOKENS}.json
-python screenspot_val.py --res_file_p ${INPUT_FILE} \
-    --method ${PASER_METHOD}
+inp_json_p=./out/${formatted_date}/${model_name}/sp_web_m_${model_name}_itm_${max_img_tokens}-t_${temprature}.json
+python screenspot_val.py --res_file_p ${inp_json_p} \
+    --method ${parse_method}

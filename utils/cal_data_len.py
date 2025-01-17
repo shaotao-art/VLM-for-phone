@@ -61,13 +61,6 @@ if __name__ == '__main__':
         # custom train format
         num_token_lst = []
         for idx, line in enumerate(tqdm(data)):
-            # import pdb; pdb.set_trace()
-            img_p = line['messages'][0]['content'][0]['image']
-            if 'omniact' in data_p:
-                img_name = '/'.join(img_p.split('/')[-2:])
-            else:
-                img_name = os.path.basename(img_p)
-                
             prompt = processor.apply_chat_template(line['messages'],
                         tokenize=False,
                         add_generation_prompt=False)
@@ -84,6 +77,12 @@ if __name__ == '__main__':
             if flag:
                 single_img_tokens = max_img_tokens
             else:
+                # import pdb; pdb.set_trace()
+                img_p = line['messages'][0]['content'][0]['image']
+                if 'omniact' in data_p:
+                    img_name = '/'.join(img_p.split('/')[-2:])
+                else:
+                    img_name = os.path.basename(img_p)
                 h, w = img_name2shape[img_name]
                 h_, w_ = smart_resize(height=h, width=w, max_pixels=max_img_tokens * 28 * 28)
                 single_img_tokens = h_ / 28 * w_ / 28

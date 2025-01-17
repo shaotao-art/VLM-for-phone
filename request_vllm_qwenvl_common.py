@@ -1,44 +1,40 @@
 from openai import OpenAI
-import base64
-import numpy as np
-import base64
-from io import BytesIO
-from PIL import Image
-import time
-from colorama import Fore, Style, init
+import os
+import cv2
 import logging
-import ast
 
-from utils.file_utils import read_image, save_image, get_image_base64
-from utils.img_ops import resize_image_short_side
-from utils.draw_utils import draw_grid
-from utils.helper_utils import get_action_args
+
+from utils.file_utils import read_image, save_image, get_image_base64, read_json
+from utils.file_utils import read_image, get_image_base64
+from utils.draw_utils import draw_dot
+from utils.img_ops import smart_resize_img
 
 logging.basicConfig(level=logging.INFO)
 
 
 if __name__ == '__main__':
     openai_api_key = "shaotao"
-    openai_api_base = "http://localhost:8001/v1"
-    model_name = '7b-pt2func'
-
-    
-
-    img_short_side_size = 448
-    img_p = 'TEST_IMGS/2_SCROLL.png'
+    openai_api_base = "http://localhost:8005/v1"
+    # model_name = 'qwen2_VL_7B'
+    model_name = 'tt'
+    max_img_tokens = 1280
     temprature = 0.3
-    # prompt = 'OCR this image'
-    prompt = "detect the bounding box of '什么样的代码一看就知道是ai写的'"
-    logging.info(">>> Prompt: \n" + prompt)
-
     client = OpenAI(
         api_key=openai_api_key,
         base_url=openai_api_base,
     )
     
-    img = read_image(img_p)
-    img = resize_image_short_side(img, img_short_side_size)
+    box = [89, 3, 110, 22]
+    prompt = """<image>Output the location of target element according to the given instruction.
+## Instruction
+{instruction}"""
+    prompt = prompt.format(instruction="view more options")
+
     
+    img = read_image("/home/shaotao/PROJECTS/VLM_AND_PHONE/tmp.jpeg")
+    img = smart_resize_img(img, max_img_tokens * 28 * 28)
+    
+
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=[
@@ -62,4 +58,10 @@ if __name__ == '__main__':
     model_pred = chat_response.choices[0].message.content
     logging.info(">>> finish reason: \n" + chat_response.choices[0].finish_reason)
     logging.info(">>> Chat response: \n" + model_pred)
+    x, y = eval(model_pred)
+    x = x / 1000
+    y = y / 1000
+    img = draw_dot(img, (x, y), color=(0, 255, 0), radius=20)
+    save_image(img, 'vis.jpg')
+    
     

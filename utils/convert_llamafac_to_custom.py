@@ -44,7 +44,7 @@ def transform_sharegpt_to_custom(original_data):
                         })
             
         try:
-            assert img_idx == len(image_lst)
+            # assert img_idx == len(image_lst)
             out_data.append(transformed)
         except Exception as e:
             print('error diag: ', line)

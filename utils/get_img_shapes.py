@@ -1,6 +1,6 @@
 import os
 import sys
-PROJECT_ROOT=os.path.dirname(os.path.abspath('.'))
+PROJECT_ROOT='/home/shaotao/PROJECTS/VLM_AND_PHONE'
 sys.path.append(PROJECT_ROOT)
 from glob import glob
 from tqdm import tqdm
@@ -31,11 +31,11 @@ def process_file(file):
         return None
 
 if __name__ == '__main__':
-    img_files = glob('/home/shaotao/DATA/omniact-SHOWUI-8k/screenshots/*/*')
-    out_pkl_p = 'omniact_img_shapes.pkl'
+    img_files = glob('/home/shaotao/DATA/mind2web/ming2web_images/*')
+    out_pkl_p = 'mind2web_img_shapes.pkl'
     img_name2shape = dict()
 
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=16) as executor:
         results = list(tqdm(executor.map(process_file, img_files), total=len(img_files)))
 
     for result in results:
