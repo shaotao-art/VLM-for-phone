@@ -1,3 +1,20 @@
+"""
+process output of ominiparser
+
+1. filter boxes based on IoF with a given threshold, keeping only the first of any overlapping boxes.
+2. select boxes based on two modes: random or patch
+3. save selected boxes to a json file
+    data format:
+    [
+        {
+            'img_name': 'xxx.png',
+            'box': [x1, y1, x2, y2],
+            'type': 'text' or 'icon',
+            'text': 'xxx'
+        },
+        ...
+    ]
+"""
 import os
 import sys
 from tqdm import tqdm
@@ -19,7 +36,7 @@ import argparse
 
 def group_and_extract_boxes(boxes: List[Tuple[float, float, float, float]], 
                             k: int, 
-                            segments) -> List[int]:
+                            segments: int) -> List[int]:
     """Group boxes based on their centers and extract k boxes from each group"""
     centers = [( (x1 + x2) / 2, (y1 + y2) / 2 ) for x1, y1, x2, y2 in boxes]
     
@@ -41,7 +58,7 @@ def group_and_extract_boxes(boxes: List[Tuple[float, float, float, float]],
     return extracted_indices
 
 
-def calculate_iof_matrix(boxes):
+def calculate_iof_matrix(boxes: torch.Tensor) -> torch.Tensor:
     """Calculate the IoF matrix between boxes."""
     areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
     boxes_expanded = boxes.unsqueeze(1)  # Shape: (N, 1, 4)
@@ -136,7 +153,9 @@ if __name__ == '__main__':
             keep_idx = filter_boxes_by_iof_threshold(all_boxes, iof_thres)
             random.shuffle(keep_idx.tolist())
             final_keep_idx = keep_idx[:sample_per_img]
+        
         num_ele_lst.append(len(final_keep_idx))
+        
         for b_idx, line in enumerate(ann):
             if b_idx not in final_keep_idx:
                 continue
