@@ -1,8 +1,5 @@
 import os
 import sys
-PROJECT_ROOT = os.path.dirname(os.path.abspath('..'))
-sys.path.append(PROJECT_ROOT)
-
 from openai import OpenAI
 import os
 import cv2
@@ -11,7 +8,7 @@ from copy import deepcopy
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 
-
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 from utils.file_utils import (read_image, 
                               read_json, 
                               save_json, 
@@ -22,7 +19,7 @@ from prompts import all_prompts
 
 
 
-def infer(client, model_name, instruction, img_p, temprature):
+def infer(client, model_name, prompt, img_p, temprature):
     image_np = read_image(img_p)
     ori_img_shape = image_np.shape[:2]
     h, w = ori_img_shape
@@ -37,35 +34,21 @@ def infer(client, model_name, instruction, img_p, temprature):
             # pad
             image_np = resize_image_short_side(image_np, pad_img_short_side_size)
     
-    if image_first:
-        init_conv = [   
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": get_image_base64(image_np),
-                    },
-                },
-                {"type": "text", "text": PROMPT},
-                {"type": "text", "text": instruction}
-                    ]
-    else:
-        init_conv = [   
-                {"type": "text", "text": PROMPT},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": get_image_base64(image_np),
-                    },
-                },
-                {"type": "text", "text": instruction}
-            ]
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {
                 "role": "user",
-                "content": init_conv
+                "content": [   
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": get_image_base64(image_np),
+                        },
+                    },
+                    {"type": "text", "text": prompt}
+                ]
             },
         ],
         temperature=temprature,
@@ -77,13 +60,13 @@ def infer(client, model_name, instruction, img_p, temprature):
 def parse_args():
     parser = argparse.ArgumentParser(description="Run inference on images using OpenAI model.")
     
-    parser.add_argument('--openai_api_key', type=str, required=True, help='OpenAI API key')
-    parser.add_argument('--openai_api_base', type=str, required=True, help='OpenAI API base URL')
-    parser.add_argument('--temprature', type=float, default=0.3, help='Temperature for the model')
+    parser.add_argument('--openai_api_key', type=str, help='OpenAI API key')
+    parser.add_argument('--openai_api_base', type=str, help='OpenAI API base URL')
+    parser.add_argument('--temprature', type=float, required=True, help='Temperature for the model')
     parser.add_argument('--num_thread', type=int, default=20, help='Number of threads to use for inference')
 
     parser.add_argument('--model_name', type=str, required=True, help='Model name to use for inference')
-    parser.add_argument('--prompt_type', type=str, default='showui_float', help='prompt for the model')
+    parser.add_argument('--prompt_type', type=str, required=True, help='prompt for the model')
     parser.add_argument('--phone_img_short_side_size', type=int, default=-1, help='Short side size for phone images')
     parser.add_argument('--pad_img_short_side_size', type=int, default=-1, help='Short side size for pad images')
     parser.add_argument('--use_smart_resize', action='store_true', help='Use smart resize for images')
@@ -91,7 +74,6 @@ def parse_args():
     parser.add_argument('--out_json_p', type=str, required=True, help='Output JSON file path')
     parser.add_argument('--img_root', type=str, required=True, help='Root directory for images')
     parser.add_argument('--max_img_tokens', type=int, help='Maximum number of image tokens in test')
-    parser.add_argument('--image_first', action="store_true", default=False)
     return parser.parse_args()
 
     
@@ -113,7 +95,6 @@ if __name__ == '__main__':
     temprature = args.temprature
     num_thread = args.num_thread
     max_img_tokens = args.max_img_tokens
-    image_first = args.image_first
     
     PROMPT = all_prompts[prompt_type]
     
@@ -130,6 +111,11 @@ if __name__ == '__main__':
         assert phone_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
         assert pad_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
     
+    client = OpenAI(
+            api_key=openai_api_key,
+            base_url=openai_api_base,
+        )
+    data = read_json(inp_json_p)
     
     day_str = get_date_str()
     out_root = os.path.join('out', day_str, model_name)
@@ -139,29 +125,17 @@ if __name__ == '__main__':
         print(f"Output file already exists: {out_json_p}")
         sys.exit(0)
     
-    client = OpenAI(
-            api_key=openai_api_key,
-            base_url=openai_api_base,
-        )
-    
-    data = read_json(inp_json_p)
-    inst = data[0]['instruction']
-    img_p = os.path.join(img_root, data[0]['img_filename'])
-    model_pred_ = infer(client, model_name, inst, img_p, temprature)
-    print(">>> sample data: \n" + str(data[0]))
-    print(">>> sample img_p: \n" + img_p)
-    print(">>> sample model_pred: \n" + model_pred_['pred'])
-    
+
     # pack all params into list
     params = [(client, 
                 model_name,
-                data[d_idx]['instruction'], 
+                PROMPT + data[d_idx]['instruction'], 
                 os.path.join(img_root,
                             data[d_idx]['img_filename']),
                 temprature) for d_idx in range(len(data))]
     # params = params[:20]
-    print(f'len samples: {len(params)}')
-    print(f'file out: {out_json_p}')
+    print('sample prompt: ', params[2][2])
+    print('sample pred: ', infer(*params[2]))
     
     with ThreadPoolExecutor(max_workers=num_thread) as executor:
         # use map to keep the order of results

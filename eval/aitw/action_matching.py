@@ -49,14 +49,14 @@ def determine_swipe_direction(str_pt, end_pt):
 
     if abs(delta_x) > abs(delta_y):
         if delta_x > 0:
-            return 'right'
-        else:
             return 'left'
+        else:
+            return 'right'
     else:
         if delta_y > 0:
-            return 'down'
-        else:
             return 'up'
+        else:
+            return 'down'
 
 
 def action_matching(pred_action, pred_info, gt_action, gt_info):
@@ -71,7 +71,8 @@ def action_matching(pred_action, pred_info, gt_action, gt_info):
     if pred_action != gt_action:
         return {'is_correct': 'no', 'info': 'action_fail'}
     
-    if gt_action not in ['SCROLL', 'CLICK', 'TYPE', 'LONG_PRESS']:
+    if gt_action not in ['CLICK', 'TYPE', 'LONG_PRESS']:
+    # if gt_action not in ['SCROLL', 'CLICK', 'TYPE', 'LONG_PRESS']:
         return {'is_correct': 'yes', 'info': 'action_correct'}
     
     elif gt_action == 'TYPE':
@@ -82,15 +83,15 @@ def action_matching(pred_action, pred_info, gt_action, gt_info):
         else:
             return {'is_correct': 'no', 'info': 'type_fail'}
     
-    elif gt_action == 'SCROLL':
-        if type(pred_info) == str:
-            pred_info = eval(pred_info)
-        if type(gt_info) == str:
-            gt_info = eval(gt_info)
-        if determine_swipe_direction(*pred_info) == determine_swipe_direction(*gt_info):
-            return {'is_correct': 'yes', 'info': 'scroll_correct'}
-        else:
-            return {'is_correct': 'no', 'info': 'scroll_fail'}        
+    # elif gt_action == 'SCROLL':
+    #     if type(pred_info) == str:
+    #         pred_info = eval(pred_info)
+    #     if type(gt_info) == str:
+    #         gt_info = eval(gt_info)
+    #     if determine_swipe_direction(*pred_info) == determine_swipe_direction(*gt_info):
+    #         return {'is_correct': 'yes', 'info': 'scroll_correct'}
+    #     else:
+    #         return {'is_correct': 'no', 'info': 'scroll_fail'}        
     
     elif gt_action == 'CLICK' or gt_action == 'LONG_PRESS':
         click_flag = click_matching(gt_info, pred_info)

@@ -6,33 +6,43 @@ import logging
 
 from utils.file_utils import read_image, save_image, get_image_base64, read_json
 from utils.file_utils import read_image, get_image_base64
-from utils.draw_utils import draw_dot
+from utils.draw_utils import draw_dot, draw_box
 from utils.img_ops import smart_resize_img
+from prompts import all_prompts
 
 logging.basicConfig(level=logging.INFO)
 
 
 if __name__ == '__main__':
     openai_api_key = "shaotao"
-    openai_api_base = "http://localhost:8005/v1"
-    # model_name = 'qwen2_VL_7B'
-    model_name = 'tt'
-    max_img_tokens = 1280
-    temprature = 0.3
+    openai_api_base = "http://localhost:8001/v1"
+    # model_name = 'qwen2-vl-7b'
+    model_name = 'test'
+    prompt_type = 'box2func_with_som_test'
+    # prompt_type = 'box2func_test'
+    max_img_tokens = 1344
+    temprature = 0.0
     client = OpenAI(
         api_key=openai_api_key,
         base_url=openai_api_base,
     )
     
-    box = [89, 3, 110, 22]
-    prompt = """<image>Output the location of target element according to the given instruction.
-## Instruction
-{instruction}"""
-    prompt = prompt.format(instruction="view more options")
-
+    box_float = [
+                    0.6091098189353943,
+                    0.9429123997688293,
+                    0.6385723948478699,
+                    0.9862145185470581
+                ]
+    box = [int(x * 1000) for x in box_float]
+    prompt = all_prompts[prompt_type]
+    prompt = prompt.format(x1=box[0], y1=box[1], x2=box[2], y2=box[3])
     
-    img = read_image("/home/shaotao/PROJECTS/VLM_AND_PHONE/tmp.jpeg")
+    
+    img = read_image("/home/shaotao/DATA/os-altas/linux-mac-merged/20240904_154245_screenshot.png")
+    if 'som' in prompt_type:
+        img = draw_box(img, box_float, color=(255, 0, 0))
     img = smart_resize_img(img, max_img_tokens * 28 * 28)
+    save_image(img, 'test.jpg')
     
 
     chat_response = client.chat.completions.create(
@@ -56,12 +66,9 @@ if __name__ == '__main__':
         seed=42
     )
     model_pred = chat_response.choices[0].message.content
+    logging.info(">>> prompt: \n" + prompt)
     logging.info(">>> finish reason: \n" + chat_response.choices[0].finish_reason)
     logging.info(">>> Chat response: \n" + model_pred)
-    x, y = eval(model_pred)
-    x = x / 1000
-    y = y / 1000
-    img = draw_dot(img, (x, y), color=(0, 255, 0), radius=20)
-    save_image(img, 'vis.jpg')
+    
     
     

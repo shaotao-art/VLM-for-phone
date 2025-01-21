@@ -1,11 +1,13 @@
 from openai import OpenAI
 import os
+import sys
 import cv2
 from tqdm import tqdm
 from copy import deepcopy
+import numpy as np
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-
+from typing import Tuple
 
 from utils.file_utils import (read_image, 
                               read_json, 
@@ -13,18 +15,20 @@ from utils.file_utils import (read_image,
                               get_image_base64)
 from utils.img_ops import resize_image_short_side, smart_resize
 from utils.draw_utils import draw_box
+from utils.helper_utils import print_args, get_date_str
 from prompts import all_prompts
 
 
-def preprocess_image(img, 
-                     box, 
-                     use_phone_crop, 
-                     vis=False):
+def preprocess_image(img: np.ndarray, 
+                     box_int: Tuple[int, int, int, int],
+                     use_phone_crop: bool, 
+                     vis: bool) -> np.ndarray:
     """- whether to use phone crop or not
     - whether to visualize the box or not"""
     if use_phone_crop:
+        # crop the image based on the box to make a phone size image
         h, w = img.shape[:2]
-        box_in_float = [_ / 1000 for _ in box]
+        box_in_float = [_ / 1000 for _ in box_int]
         box_in_pixel = box_in_float[0] * w, box_in_float[1] * h, box_in_float[2] * w, box_in_float[3] * h
         cent_x = (box_in_float[0] + box_in_float[2]) / 2
         cent_x = int(w * cent_x)
@@ -40,16 +44,23 @@ def preprocess_image(img,
         if vis == True:
             img = draw_box(img, (x1, y1, x2, y2), color=(255, 0, 0))
     else:
-        box_in_float = [_ / 1000 for _ in box] 
+        box_in_float = [_ / 1000 for _ in box_int] 
         if vis == True:
             img = draw_box(img, box_in_float, color=(255, 0, 0))
     return img
 
-def infer(client, model_name, prompt, img_p, box, use_phone_crop, vis, temprature):
+def infer(client, 
+          model_name,
+          prompt: str, 
+          img_p: str, 
+          box_int: Tuple[int, int, int, int], 
+          use_phone_crop: bool, 
+          vis: bool, 
+          temprature: float):
     image_np = read_image(img_p)
     ori_img_shape = image_np.shape[:2]
     h, w = ori_img_shape
-    image_np = preprocess_image(image_np, box, use_phone_crop, vis)
+    image_np = preprocess_image(image_np, box_int, use_phone_crop, vis)
     if use_smart_resize:
         h_bar, w_bar = smart_resize(height=h, width=w, max_pixels=14 * 14 * 4 * max_img_tokens)
         image_np = cv2.resize(image_np, (w_bar, h_bar))
@@ -90,7 +101,7 @@ def parse_args():
     
     parser.add_argument('--openai_api_key', type=str, required=True, help='OpenAI API key')
     parser.add_argument('--openai_api_base', type=str, required=True, help='OpenAI API base URL')
-    parser.add_argument('--temprature', type=float, default=0.3, help='Temperature for the model')
+    parser.add_argument('--temprature', type=float, required=True, help='Temperature for the model')
     parser.add_argument('--num_thread', type=int, default=20, help='Number of threads to use for inference')
 
     parser.add_argument('--model_name', type=str, required=True, help='Model name to use for inference')
@@ -109,9 +120,8 @@ def parse_args():
     
 if __name__ == '__main__':
     args = parse_args()
-    print("Arguments:")
-    for arg in vars(args):
-        print(f"{arg}: {getattr(args, arg)}")
+    print_args(args)
+    
     openai_api_key = args.openai_api_key
     openai_api_base = args.openai_api_base
     model_name = args.model_name
@@ -127,18 +137,19 @@ if __name__ == '__main__':
     max_img_tokens = args.max_img_tokens
     use_phone_crop = args.use_phone_crop
     vis = args.vis
-    
-    if 'vis' in prompt_type:
-        assert vis == True
-    PROMPT = all_prompts[prompt_type]
-    
-            
     if use_smart_resize:
         assert phone_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
         assert pad_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
     
-    os.makedirs('out', exist_ok=True)
-    out_json_p = f'out/{out_json_p}'
+    
+    PROMPT = all_prompts[prompt_type].replace('<image>', ' ')
+    day_str = get_date_str()
+    out_root = os.path.join('out', day_str, model_name)
+    os.makedirs(out_root, exist_ok=True)
+    out_json_p = os.path.join(out_root, args.out_json_p)
+    if os.path.exists(out_json_p):
+        print(f"Output file already exists: {out_json_p}")
+        sys.exit(0)
     
     client = OpenAI(
             api_key=openai_api_key,
@@ -147,24 +158,6 @@ if __name__ == '__main__':
     
 
     data = read_json(inp_json_p)
-    
-    img_p = os.path.join(img_root, data[0]['img_name'])
-    box = data[0]['box']
-    text = data[0]['text']
-    box_int = [int(_ * 1000) for _ in box]
-    x1, y1, x2, y2 = box_int
-    if 'ocr' not in prompt_type:
-        prompt = PROMPT.format(x1=x1, y1=y1, x2=x2, y2=y2)
-    else:
-        prompt = PROMPT.format(x1=x1, y1=y1, x2=x2, y2=y2, text=text)
-        
-    model_pred_ = infer(client, model_name, prompt, img_p, box_int, use_phone_crop, vis, temprature)
-    print(">>> sample data: \n" + str(data[0]))
-    print(">>> sample img_p: \n" + img_p)
-    print(">>> sample prompt: \n" + prompt)
-    print(">>> sample model_pred: \n" + model_pred_['pred'])
-    
-    
     # preprocess all the box
     int_box_lst = []
     for d_idx in range(len(data)):
@@ -194,10 +187,9 @@ if __name__ == '__main__':
                 temprature) for d_idx in range(len(data))]
 
     # params = params[:200]
-    
-    print(f'len samples: {len(params)}')
-    print(f'file out: {out_json_p}')
-    
+        
+    print('sample prompt:', params[0][2])
+    print('sample pred: ', infer(*params[0])['pred'])
     with ThreadPoolExecutor(max_workers=num_thread) as executor:
         # use map to keep the order of results
         results = list(tqdm(executor.map(lambda param: infer(*param), 
@@ -211,5 +203,4 @@ if __name__ == '__main__':
         out_line['model_pred'] = model_pred['pred']
         out_line['ori_img_shape'] = model_pred['img_shape']
         out.append(out_line)
-    
     save_json(out, out_json_p)

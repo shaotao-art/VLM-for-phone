@@ -2,28 +2,31 @@ import json
 import sys
 import os
 import argparse
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Any
 import pandas as pd
 from tqdm import tqdm
+from copy import deepcopy
+import ast
 
-sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE/')
-# sys.path.append('/Users/starfish/Desktop/VLM_AND_PHONE/')
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 from utils.file_utils import read_image, read_json, save_image, save_json
 from utils.helper_utils import print_args
 from prompts import all_prompts
 
-def format_his_info(action_his:List[Dict]):
+def format_his_info(action_his:List[str]):
     act_his_str = ''
     for his in action_his:
-        his = json.loads(his)
-        if 'action' in his:
-            act_his_str += f"action: {his['action']} "
+        # print(type(his))
+        # print(his)
+        his_dict = ast.literal_eval(his)
+        # print(type(his_dict))
+        if 'action' in his_dict:
+            act_his_str += f"action: {his_dict['action']} "
         if 'action_value' not in his:
-            act_his_str += f"action_type: {his['action_type']}\n"
+            act_his_str += f"action_type: {his_dict['action_type']}\n"
         else:
-            act_his_str += f"action_type: {his['action_type']}, action_value: {his['action_value']}\n"
-    return act_his_str
-
+            act_his_str += f"action_type: {his_dict['action_type']}, action_value: {his_dict['action_value']}\n"
+    return act_his_str.strip()
 
 def determine_swipe_direction(str_pt: Tuple[float, float], 
                               end_pt: Tuple[float, float]) -> str:
@@ -41,7 +44,7 @@ def determine_swipe_direction(str_pt: Tuple[float, float],
         else:
             return 'down'
 
-def parse_action_type(ann, cot_ann: Dict):
+def parse_action_type(ann):
     action_type_id = int(ann['action_type_id'])
     action_type_text = ann["action_type_text"]
     touch_pt = ann['touch']
@@ -112,12 +115,8 @@ def parse_action_type(ann, cot_ann: Dict):
     else:
         print('error action')
         print(ann)
-        
-    if cot_ann is not None:
-        cot_ann.update(answer)
-        return json.dumps(cot_ann)
-    else:
-        return json.dumps(answer)
+    
+    return answer
 
 
 def get_args():
@@ -127,7 +126,8 @@ def get_args():
     parser.add_argument('--out_json_p', type=str, help='Path to the output JSON file')
     parser.add_argument('--hist_len', type=int, default=4, help='Length of the action history')
     parser.add_argument('--cot_ann_p', type=str, default=None, help='multi level annotation json path')
-    parser.add_argument('--cot_level', type=str, default=None, help='cot annotation level')
+    parser.add_argument('--answer_cot_level', type=str, default=None, help='cot annotation level')
+    parser.add_argument('--hist_use_action', action='store_true', help='use action in history')
     args = parser.parse_args()
     return args
 
@@ -139,18 +139,12 @@ if __name__ == '__main__':
     out_json_p = args.out_json_p
     hist_len = args.hist_len
     cot_ann_p = args.cot_ann_p
-    cot_level = args.cot_level
-   
-    # img_root = '/home/shaotao/DATA/aitw/aitw_images'
-    # inp_json_p = '/home/shaotao/DATA/aitw/aitw_data_train.json'
-    # cot_ann_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/baseline_data/aitw-l3.xlsx'
-    # out_json_p = 'aitw-naive.json'
-    # hist_len = 4
-    # # cot_level = 'action'
-    # cot_ann_p = None
-    # cot_level = None
-    if cot_level is not None:
-        assert cot_level in ['action', 'thoughts']
+    answer_cot_level = args.answer_cot_level
+    hist_use_action = args.hist_use_action
+    
+    
+    if answer_cot_level is not None:
+        assert answer_cot_level in ['action', 'thoughts', 'null']
 
     all_ann = read_json(inp_json_p)
     PROMPT = all_prompts['agent_prompt']
@@ -186,33 +180,51 @@ if __name__ == '__main__':
                     observation = multi_level_ann_line['observation']
                     thought = multi_level_ann_line['thought']
                     action = multi_level_ann_line['action']
-                    if cot_level == 'action':
-                        cot = dict(
-                            action=action
-                        )
-                    else:
-                        cot = dict(
-                            observation=observation,
-                            thought=thought,
-                            action=action
-                        )
-                # history format: action(optional), action_type, action_params   
+                    cot = dict(
+                        observation=observation,
+                        thought=thought,
+                        action=action
+                    )
+
                 act_his_str = format_his_info(action_his[-hist_len:])
                 if len(action_his) == 0:
                     act_his_str = 'null'
                     
                 prompt = PROMPT.format(instruction=instruction, 
                                        action_history=act_his_str)
+                if '<image>' not in prompt:
+                    prompt = '<image>' + prompt
                 
-                answer = parse_action_type(ann, cot)
-                action_his.append(answer)
-
+                plain_answer = parse_action_type(ann)
+                # print('plain answer: ', plain_answer)
+                
+                if cot is not None:
+                    if answer_cot_level == 'action':
+                        answer = {'action': cot['action']}
+                        answer.update(plain_answer)
+                    elif answer_cot_level == 'thoughts':
+                        answer = deepcopy(cot)
+                        answer.update(plain_answer)
+                    elif answer_cot_level == 'null':
+                        answer = plain_answer                    
+                else:
+                    answer = plain_answer
+                # print('answer: ', answer)
+                
+                # history format: action(optional), action_type, action_params   
+                if hist_use_action:
+                    hist_line = {'action': cot['action']}
+                    hist_line.update(plain_answer)
+                else:
+                    hist_line = plain_answer
+                # print('hist line: ', hist_line)
+                action_his.append(str(hist_line))
                 conversation.append({'from': 'human', 'value': prompt})
-                conversation.append({'from': 'gpt', 'value': answer})
+                conversation.append({'from': 'gpt', 'value': json.dumps(answer)})
                 line = {'conversation': conversation, 'image_lst': [img_filename]}
                 all_data.append(line)
                 # break
-            # break
+        #     break
         # break
     print(f'>>> total data num: {len(all_data)}')
     save_json(all_data, out_json_p)

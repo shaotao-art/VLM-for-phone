@@ -118,5 +118,6 @@ def draw_text(img: np.ndarray,
               thickness=default_draw_config.font_thickness, 
               font=default_draw_config.font):
     img_ = img.copy()
+    pt = float_cord_to_int_xy(pt, img)
     cv2.putText(img_, text, pt, font, scale, color, thickness, cv2.LINE_AA)
     return img_

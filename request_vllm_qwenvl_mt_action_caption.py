@@ -1,9 +1,5 @@
 import os
 import sys
-PROJECT_ROOT = os.path.dirname(os.path.abspath('..'))
-sys.path.append(PROJECT_ROOT)
-
-
 from openai import OpenAI
 import cv2
 from tqdm import tqdm
@@ -16,14 +12,14 @@ from utils.file_utils import (read_image,
                               save_json, 
                               get_image_base64)
 from utils.img_ops import resize_image_short_side
-from utils.helper_utils import smart_resize, print_args
+from utils.helper_utils import smart_resize, print_args, get_date_str
 
 
 
 def infer(client, model_name, prompt, img_p, temprature):
     image_np = read_image(img_p)
-    h, w = image_np.shape[:2]
     if use_smart_resize:
+        h, w = image_np.shape[:2]
         h, w = smart_resize(h, w, max_pixels=max_img_tokens * 28 * 28)
         image_np = cv2.resize(image_np, (w, h))
     else:
@@ -56,9 +52,9 @@ def infer(client, model_name, prompt, img_p, temprature):
 
 def get_args():
     parser = argparse.ArgumentParser(description='Process some parameters.')
-    parser.add_argument('--api_key', type=str, default="shaotao", help='OpenAI API key')
-    parser.add_argument('--api_base', type=str, default="http://localhost:8001/v1", help='OpenAI API base URL')
-    parser.add_argument('--temprature', type=float, default=0.0, help='Temperature')
+    parser.add_argument('--api_key', type=str, help='OpenAI API key')
+    parser.add_argument('--api_base', type=str, help='OpenAI API base URL')
+    parser.add_argument('--temprature', type=float, help='Temperature')
     parser.add_argument('--num_thread', type=int, default=20, help='Number of threads')
     parser.add_argument('--img_root', type=str, required=True, help='Image root path')
     
@@ -67,7 +63,7 @@ def get_args():
     parser.add_argument('--inp_json_p', type=str, required=True, help='Input JSON path')
     parser.add_argument('--out_json_p', type=str, required=True, help='Output JSON file path')
     parser.add_argument('--img_short_side_size', type=int, default=-1, help='Image short side size')
-    parser.add_argument('--max_img_tokens', type=int, help='Maximum number of image tokens')
+    parser.add_argument('--max_img_tokens', type=int, required=True, help='Maximum number of image tokens')
     parser.add_argument('--use_smart_resize', action='store_true', help='Use smart resize for images')
     return parser.parse_args()
 
@@ -93,20 +89,24 @@ if __name__ == '__main__':
             api_key=openai_api_key,
             base_url=openai_api_base,
         )
-     
     data = read_json(inp_json_p)
-    os.makedirs('out', exist_ok=True)
-    out_json_p = f'out/{out_json_p}'
+    day_str = get_date_str()
+    out_root = os.path.join('out', day_str, model_name)
+    os.makedirs(out_root, exist_ok=True)
+    out_json_p = os.path.join(out_root, args.out_json_p)
+    if os.path.exists(out_json_p):
+        print(f"Output file already exists: {out_json_p}")
+        sys.exit(0)
+    
     
     # pack all params into list
     params = [(client, 
                 model_name,
-                data[d_idx]['conversation'][0]['value'].replace('<image>\n', ''), 
+                data[d_idx]['conversation'][0]['value'].replace('<image>', ''), 
                 os.path.join(img_root, data[d_idx]['image_lst'][0]),
                 temprature) for d_idx in range(len(data))]
 
     # params = params[:20]
-    
     print('sample prompt: ', params[0][2])
     model_pred = infer(*params[0])
     print('sample prediction: ', model_pred)
@@ -125,6 +125,5 @@ if __name__ == '__main__':
         out.append(out_line)
         out[d_idx]['conversation'].append({'from': 'prediction', 
                                            'value': model_pred})
-
     save_json(out, out_json_p)
 

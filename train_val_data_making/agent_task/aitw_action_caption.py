@@ -6,8 +6,7 @@ from typing import Tuple, Dict, List
 import pandas as pd
 from tqdm import tqdm
 
-sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE/')
-# sys.path.append('/Users/starfish/Desktop/VLM_AND_PHONE/')
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 from utils.file_utils import read_image, read_json, save_image, save_json
 from utils.helper_utils import print_args
 from prompts import all_prompts
@@ -22,7 +21,7 @@ def format_his_info(action_his:List[Dict], use_cot_his: bool):
             act_his_str += f"action_type: {his['action_type']}\n"
         else:
             act_his_str += f"action_type: {his['action_type']}, action_value: {his['action_value']}\n"
-    return act_his_str
+    return act_his_str.strip()
 
 
 def determine_swipe_direction(str_pt: Tuple[float, float], 
@@ -125,10 +124,10 @@ def get_args():
     parser.add_argument('--img_root', type=str, help='Path to the image root directory')
     parser.add_argument('--inp_json_p', type=str, help='Path to the input JSON file')
     parser.add_argument('--out_json_p', type=str, help='Path to the output JSON file')
-    parser.add_argument('--hist_len', type=int, default=4, help='Length of the action history')
+    parser.add_argument('--hist_len', type=int, help='Length of the action history')
     parser.add_argument('--cot_ann_p', type=str, default=None, help='multi level annotation json path')
     parser.add_argument('--cot_level', type=str, default=None, help='cot annotation level')
-    parser.add_argument('--use_cot_his', action='store_true', help='whether to use cot history')
+    parser.add_argument('--use_cot_his', action='store_true', help='whether to include action description in history')
     args = parser.parse_args()
     return args
 
@@ -202,10 +201,15 @@ if __name__ == '__main__':
                                        action_history=act_his_str,
                                        action_type=answer['action_type'],
                                        action_value=answer.get('action_value', 'null'))
-                gt = answer['action']
+                if '<image>' not in prompt:
+                    prompt = '<image>' + prompt
+                    
+                if 'test' not in inp_json_p:
+                    gt = answer['action']
 
                 conversation.append({'from': 'human', 'value': prompt})
-                conversation.append({'from': 'gpt', 'value': gt})
+                if 'test' not in inp_json_p:
+                    conversation.append({'from': 'gpt', 'value': gt})
                 line = {'conversation': conversation, 'image_lst': [img_filename]}
                 all_data.append(line)
                 # print('>>>>> sample')

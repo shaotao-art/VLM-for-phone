@@ -101,7 +101,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_file_name', type=str, help='Output file name')
     parser.add_argument('--iof_thres', type=float, help='IoF threshold for filtering boxes')
     parser.add_argument('--show', action='store_true', help='Whether to show images with drawn boxes')
-    parser.add_argument('--select_mode', type=str, choices=['random', 'patch'], help='Selection mode')
+    parser.add_argument('--select_mode', type=str, help='Selection mode')
     parser.add_argument('--sample_per_img', type=int, help='Number of samples per image for random mode')
     parser.add_argument('--num_segments', type=int, help='Number of segments for patch mode')
     parser.add_argument('--sample_per_patch', type=int, help='Number of samples per patch for patch mode')
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     sample_per_img = args.sample_per_img
     num_segments = args.num_segments
     sample_per_patch = args.sample_per_patch
-    assert select_mode in ['random', 'patch']
+    assert select_mode in ['random', 'patch', 'all']
     
     
     num_ele_lst = []
@@ -144,6 +144,8 @@ if __name__ == '__main__':
 
         # box are preordered, text first, icon second
         all_boxes = torch.tensor([line['bbox'] for line in ann])
+        if select_mode == 'all':
+            final_keep_idx = filter_boxes_by_iof_threshold(all_boxes, iof_thres)
         if select_mode == 'patch':
             keep_idx = filter_boxes_by_iof_threshold(all_boxes, iof_thres)
             patch_keep_idx = group_and_extract_boxes(all_boxes[keep_idx], sample_per_patch, num_segments)

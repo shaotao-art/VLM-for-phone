@@ -6,23 +6,22 @@ from typing import Tuple, Dict, List
 import pandas as pd
 from tqdm import tqdm
 
-sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE/')
-# sys.path.append('/Users/starfish/Desktop/VLM_AND_PHONE/')
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 from utils.file_utils import read_image, read_json, save_image, save_json
 from utils.helper_utils import print_args
 from prompts import all_prompts
 
-def format_his_info(action_his:List[Dict], use_cot_his: bool):
+def format_his_info(action_his:List[Dict]):
     act_his_str = ''
     for his in action_his:
         his = json.loads(his)
-        if 'action' in his and use_cot_his:
+        if 'action' in his:
             act_his_str += f"action: {his['action']} "
         if 'action_value' not in his:
             act_his_str += f"action_type: {his['action_type']}\n"
         else:
             act_his_str += f"action_type: {his['action_type']}, action_value: {his['action_value']}\n"
-    return act_his_str
+    return act_his_str.strip()
 
 
 def determine_swipe_direction(str_pt: Tuple[float, float], 
@@ -126,6 +125,8 @@ def get_args():
     parser.add_argument('--inp_json_p', type=str, help='Path to the input JSON file')
     parser.add_argument('--out_json_p', type=str, help='Path to the output JSON file')
     parser.add_argument('--hist_len', type=int, default=4, help='Length of the action history')
+    parser.add_argument('--cot_ann_p', type=str, default=None, help='multi level annotation json path')
+    parser.add_argument('--cot_level', type=str, default=None, help='cot annotation level')
     args = parser.parse_args()
     return args
 
@@ -136,10 +137,25 @@ if __name__ == '__main__':
     inp_json_p = args.inp_json_p
     out_json_p = args.out_json_p
     hist_len = args.hist_len
+    cot_ann_p = args.cot_ann_p
+    cot_level = args.cot_level
    
+    # img_root = '/home/shaotao/DATA/aitw/aitw_images'
+    # inp_json_p = '/home/shaotao/DATA/aitw/aitw_data_train.json'
+    # cot_ann_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/baseline_data/aitw-l3.xlsx'
+    # out_json_p = 'aitw-naive.json'
+    # hist_len = 4
+    # # cot_level = 'action'
+    # cot_ann_p = None
+    # cot_level = None
+    if cot_level is not None:
+        assert cot_level in ['action', 'thoughts']
 
     all_ann = read_json(inp_json_p)
-    PROMPT = all_prompts['agent_action_caption']
+    PROMPT = all_prompts['agent_prompt']
+    if cot_ann_p is not None:
+        cot_ann = pd.read_excel(cot_ann_p)
+        cot_ann.set_index('img_name', inplace=True)
 
     all_data = []
     for split, ann_lst in all_ann.items():
@@ -156,29 +172,53 @@ if __name__ == '__main__':
                 img_filename = f"{ann['img_filename']}.png"
                 
                 cot = None
+                if cot_ann_p is not None:
+                    dir_name = os.path.dirname(img_filename)
+                    filename = os.path.basename(img_filename)
+                    df_key = f"{dir_name}_{filename.replace('.png', '.jpg')}"
+                    if img_filename in cot_ann.index:
+                        multi_level_ann_line = cot_ann.loc[img_filename]
+                    elif df_key in cot_ann.index:
+                        multi_level_ann_line = cot_ann.loc[df_key]
+                    else:
+                        print('one img do not have multi-level ann, skipping...')
+                        continue
+                    # previous_actions = multi_level_ann_line['previous_actions']
+                    action = multi_level_ann_line['action']
+                    if cot_level != 'action':
+                        observation = multi_level_ann_line['observation']
+                        thought = multi_level_ann_line['thought']
+                        
+                    if cot_level == 'action':
+                        cot = dict(
+                            action=action
+                        )
+                    else:
+                        cot = dict(
+                            observation=observation,
+                            thought=thought,
+                            action=action
+                        )
                 # history format: action(optional), action_type, action_params   
-                act_his_str = format_his_info(action_his[-hist_len:], use_cot_his=False)
+                act_his_str = format_his_info(action_his[-hist_len:])
                 if len(action_his) == 0:
                     act_his_str = 'null'
+                    
+                prompt = PROMPT.format(instruction=instruction, 
+                                       action_history=act_his_str)
+                
+                if '<image>' not in prompt:
+                    prompt = '<image>' + prompt
                 
                 answer = parse_action_type(ann, cot)
                 action_his.append(answer)
-                answer = json.loads(answer)
-                prompt = PROMPT.format(instruction=instruction, 
-                                       action_history=act_his_str,
-                                       action_type=answer['action_type'],
-                                       action_value=answer.get('action_value', 'null'))
-                # gt = answer['action']
 
                 conversation.append({'from': 'human', 'value': prompt})
-                # conversation.append({'from': 'gpt', 'value': gt})
-                line = {'conversation': conversation, 'image_lst': [img_filename], 'step_idx': step_idx}
+                conversation.append({'from': 'gpt', 'value': answer})
+                line = {'conversation': conversation, 'image_lst': [img_filename]}
                 all_data.append(line)
-                # print('>>>>> sample')
-                # print(line['conversation'][0]['value'])
-                # print(line['conversation'][1]['value'])
                 # break
-        #     break
+            # break
         # break
     print(f'>>> total data num: {len(all_data)}')
     save_json(all_data, out_json_p)

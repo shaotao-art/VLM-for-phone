@@ -1,7 +1,7 @@
 
 import os
 import sys
-PROJECT_ROOT = os.path.dirname(os.path.abspath('..'))
+PROJECT_ROOT = '/home/shaotao/PROJECTS/VLM_AND_PHONE/'
 sys.path.append(PROJECT_ROOT)
 
 
@@ -19,9 +19,13 @@ from eval.aitw.action_matching import action_matching
 def parse_model_output(output_string):
     try:
         out = json.loads(output_string)
-        action = out['action']
+        # action = out['action']
+        # # only click and type has value
+        # value = out.get('value', '')
+
+        action = out['action_type']
         # only click and type has value
-        value = out.get('value', '')
+        value = out.get('action_value', '')
     except Exception as e:
         print(f"Error in parsing model output: {output_string}")
         print(e)
@@ -81,12 +85,15 @@ if __name__ == '__main__':
         return f'[{num_right}/{num_total}]\n{round(acc * 100, 1)}'
 
     split_lst = ['general', 'install', 'googleapps', 'single', 'webshopping']
-    action_lst = ['click', 'scroll', 'type', 'home', 'enter', 'back', 'task_complete', 'task_impossible']
+    action_lst = ['click', 'scroll_up', 'scroll_down', 'scroll_left', 'scroll_right', 'type', 'home', 'enter', 'back', 'task_complete', 'task_impossible']
 
     cm_data = [
         ["", 'general', 'install', 'googleapps', 'single', 'webshopping', 'overall'],
         ["click", '', '', '', '', '', ''],
-        ["scroll", '', '', '', '', '', ''],
+        ["scroll_up", '', '', '', '', '', ''],
+        ["scroll_down", '', '', '', '', '', ''],
+        ["scroll_left", '', '', '', '', '', ''],
+        ["scroll_right", '', '', '', '', '', ''],
         ["type", '', '', '', '', '', ''],
         ["home", '', '', '', '', '', ''],
         ["enter", '', '', '', '', '', ''],
