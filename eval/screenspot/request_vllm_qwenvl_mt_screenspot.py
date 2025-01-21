@@ -129,7 +129,7 @@ if __name__ == '__main__':
     # pack all params into list
     params = [(client, 
                 model_name,
-                PROMPT + data[d_idx]['instruction'], 
+                PROMPT + f'Instruction: {data[d_idx]["instruction"]}', 
                 os.path.join(img_root,
                             data[d_idx]['img_filename']),
                 temprature) for d_idx in range(len(data))]
