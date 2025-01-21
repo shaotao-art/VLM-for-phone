@@ -4,19 +4,19 @@ ground_prompt = """Output the location of target element according to the given 
 box2func = """Output the functionality of target element according to the given screenshot and box.
 """
 
-box2func_with_som = """Output the functionality of target element marked by a box according to the given screenshot and box.
+box2func_with_som = """Output the functionality of target element according to the given screenshot and box. Note the target element is hightlighted by red box.
 """
 
 box2func_with_ocr = """Output the functionality of target element according to the given screenshot, box and OCR result.
 """
 
-box2func_with_ocr_and_som = """Output the functionality of target element marked by a box according to the given screenshot, box and OCR result.
+box2func_with_ocr_and_som = """Output the functionality of target element according to the given screenshot, box and OCR result. Note the target element is hightlighted by red box.
 """
 
 box2func_test = """Output the functionality of target element according to the given screenshot and box.
 Box: ({x1},{y1}),({x2},{y2})"""
 
-box2func_with_som_test = """Output the functionality of target element marked by a box according to the given screenshot and box.
+box2func_with_som_test = """Output the functionality of target element according to the given screenshot and box. Note the target element is hightlighted by red box.
 Box: ({x1},{y1}),({x2},{y2})"""
 
 
@@ -24,7 +24,7 @@ box2func_with_ocr_test = """Output the functionality of target element according
 Box: ({x1},{y1}),({x2},{y2})
 Text: {text}"""
 
-box2func_with_ocr_and_som_test = """Output the functionality of target element marked by a box according to the given screenshot, box and OCR result.
+box2func_with_ocr_and_som_test = """Output the functionality of target element according to the given screenshot, box and OCR result. Note the target element is hightlighted by red box.
 Box: ({x1},{y1}),({x2},{y2})
 Text: {text}"""
 

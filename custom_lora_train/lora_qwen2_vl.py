@@ -201,9 +201,7 @@ def train():
             print(f"Traget lroa modules: {lora_target_modules}")
         config = LoraConfig(
             r=args.lora_r,
-            lora_alpha=args.lora_alpha,
             target_modules=lora_target_modules,
-            lora_dropout=args.lora_dropout,
             bias="none",
             task_type="CAUSAL_LM"
         )
@@ -258,18 +256,19 @@ def train():
         sample = train_dataset[2]['input_ids']
         if args.dataset_type == 'agent':
             print(processor.apply_chat_template(sample['messages'], tokenize=False, add_generation_prompt=False))
-        elif args.dataset_type == 'grounding':
+        elif args.dataset_type == 'grounding' or args.dataset_type == 'loc2func':
             print(processor.apply_chat_template(sample['conv_lst'], tokenize=False, add_generation_prompt=False))
             img = np.array(sample['img'])
             save_image(img, f'sample_img_{args.run_name}.jpg')
-            gpts = sample['conv_lst'][1::2]
-            from utils.draw_utils import draw_dot
-            for i in range(len(gpts)):
-                pt = eval(gpts[i]['content'][0]['text'])
-                if pt[0] > 1 or pt[1] > 1:
-                    pt[0], pt[1] = pt[0]/1000, pt[1]/1000
-                img = draw_dot(img, pt)
-            save_image(img, f'sample_img_{args.run_name}.jpg')
+            if args.dataset_type == 'grounding':
+                gpts = sample['conv_lst'][1::2]
+                from utils.draw_utils import draw_dot
+                for i in range(len(gpts)):
+                    pt = eval(gpts[i]['content'][0]['text'])
+                    if pt[0] > 1 or pt[1] > 1:
+                        pt[0], pt[1] = pt[0]/1000, pt[1]/1000
+                    img = draw_dot(img, pt)
+                save_image(img, f'sample_img_{args.run_name}.jpg')
             
             
     training_args = TrainingArguments(
