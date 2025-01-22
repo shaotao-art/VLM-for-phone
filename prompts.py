@@ -13,6 +13,10 @@ box2func_with_ocr = """Output the functionality of target element according to t
 box2func_with_ocr_and_som = """Output the functionality of target element according to the given screenshot, box and OCR result. Note the target element is hightlighted by red box.
 """
 
+ground_prompt_test = """Output the location of target element according to the given screenshot and instruction.
+Instruction: {instruction}"""
+
+
 box2func_test = """Output the functionality of target element according to the given screenshot and box.
 Box: ({x1},{y1}),({x2},{y2})"""
 
@@ -40,9 +44,6 @@ agent_prompt = """Please generate the next move according to the given screensho
 """
 
 
-short_answer_template = """{{"Function": {function}}}"""
-long_answer_template = """{{"Oberservation": {observation},  "Thoughts": {thoughts}, "Action": {action}, "Function": {function}}}"""
-
 agent_action_caption = """Based on the provided screenshot, user instruction, and historical information, infer the intention of user's current action.
 ## Instruction:
 {instruction}
@@ -63,10 +64,11 @@ all_prompts = dict(
     box2func_with_som=box2func_with_som,
     box2func_with_ocr=box2func_with_ocr,
     box2func_with_ocr_and_som=box2func_with_ocr_and_som,
-    agent_prompt=agent_prompt,
+    ground_prompt_test=ground_prompt_test,
     box2func_test=box2func_test,
     box2func_with_som_test=box2func_with_som_test,
     box2func_with_ocr_test=box2func_with_ocr_test,
     box2func_with_ocr_and_som_test=box2func_with_ocr_and_som_test,
-    agent_action_caption=agent_action_caption
+    agent_action_caption=agent_action_caption,
+    agent_prompt=agent_prompt
 )

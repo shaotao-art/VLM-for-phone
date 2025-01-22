@@ -96,6 +96,7 @@ if __name__ == '__main__':
     num_thread = args.num_thread
     max_img_tokens = args.max_img_tokens
     
+    assert prompt_type == 'ground_prompt_test', "invalid prompt type"
     PROMPT = all_prompts[prompt_type]
     
     if 'mobile' in inp_json_p:
@@ -129,7 +130,7 @@ if __name__ == '__main__':
     # pack all params into list
     params = [(client, 
                 model_name,
-                PROMPT + f'Instruction: {data[d_idx]["instruction"]}', 
+                PROMPT.format(instruction=data[d_idx]['instruction']), 
                 os.path.join(img_root,
                             data[d_idx]['img_filename']),
                 temprature) for d_idx in range(len(data))]
