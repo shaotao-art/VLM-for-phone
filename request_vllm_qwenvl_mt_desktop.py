@@ -1,3 +1,13 @@
+"""expect data format:
+[
+    {
+        "img_name": "macos_icons/1.png",
+        "bbox": [0.1, 0.2, 0.3, 0.4],
+        "text": "some text",
+    },
+    ...
+]
+"""
 from openai import OpenAI
 import os
 import sys
@@ -161,7 +171,7 @@ if __name__ == '__main__':
     # preprocess all the box
     int_box_lst = []
     for d_idx in range(len(data)):
-        box = data[d_idx]['box']
+        box = data[d_idx]['bbox']
         int_box = [int(_ * 1000) for _ in box]
         int_box_lst.append(int_box)
     assert len(int_box_lst) == len(data)
