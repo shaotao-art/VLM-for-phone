@@ -1,17 +1,23 @@
 #!/bin/bash
 project_root=/home/shaotao/PROJECTS/VLM_AND_PHONE
-model_type='2b'
-ckp_root=/home/shaotao/PROJECTS/VLM_AND_PHONE/custom_lora_train/custom_lora_saves/bm-2b-aitw-itm-1280-lr-1e-4
-cuda_idx=3
-port=8002
-test_img_tokens=1280
+model_type=2b
+# test_json_p=/home/shaotao/PROJECTS/VLM_AND_PHONE/baseline_data/agent_data/aitw_test_naive.json
+test_json_p=/home/shaotao/PROJECTS/VLM_AND_PHONE/baseline_data/agent_data/aitw_test_action.json
+ckp_root=/home/shaotao/PROJECTS/VLM_AND_PHONE/custom_lora_train/saves/01-19/albu-cot-thought-rep-fix-data
+cuda_idx=1
+port=8001
+test_img_tokens=1344
+max_seq_len=2248
+eval_last=true
+
 
 cd $ckp_root
-
 all_ckp_folders=$(find . -type d -name 'checkpoint-*' | awk -F'-' '{print $2, $0}' | sort -n | cut -d' ' -f2)
+if [[ ${eval_last} == true ]]; then
+    all_ckp_folders=$(echo ${all_ckp_folders} | awk '{print $NF}')
+fi
 
-# all_ckp_folders=$(find . -type d -name "checkpoint-*")
-# print all ckp folders one by one
+
 for ckp_folder in ${all_ckp_folders}
 do
     cd $ckp_root
@@ -31,15 +37,14 @@ do
     #     continue
     # fi
 
-    
-    cd ${project_root}
-    bash ./serve_qwenvl.sh -c ${cuda_idx} -p ${port} -m ${model_name} -k ${ckp_path} -t ${model_type} > tmp_${model_name}.log 2>&1 &
+    cd /home/shaotao/PROJECTS/VLM_AND_PHONE/scripts
+    bash ./serve_qwenvl.sh -c ${cuda_idx} -p ${port} -m ${model_name} -k ${ckp_path} -t ${model_type} -l ${max_seq_len} > tmp_${model_name}.log 2>&1 &
     # sleep 50 to wait for the server to start
-    echo "sleep 50 s for server to start"
-    sleep 50
+    echo "sleep 90 s for server to start"
+    sleep 90
 
     cd /home/shaotao/PROJECTS/VLM_AND_PHONE/eval/aitw
-    bash ./test_aitw.sh -p ${port} -m ${model_name} -t ${test_img_tokens}
+    bash ./test_aitw.sh -p ${port} -m ${model_name} -t ${test_img_tokens} -i ${test_json_p}
     # bash ./eval_mind2web.sh -m ${model_name} -t ${test_img_tokens}
 
     echo "kill server"

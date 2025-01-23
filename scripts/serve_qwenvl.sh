@@ -41,7 +41,8 @@ if [[ ${model_type} == '2b' ]]; then
                         --max-model-len ${max_seq_len} \
                         --limit-mm-per-prompt "image=1" \
                         --enable-lora \
-                        --lora-modules "${model_name}=${ckp_path}"
+                        --lora-modules "${model_name}=${ckp_path}" \
+                        --enable-prefix-caching
                         # --enforce-eager
                         # --disable-log-requests
                         
@@ -58,7 +59,8 @@ if [[ ${model_type} == '7b' ]]; then
                         --max-model-len ${max_seq_len} \
                         --limit-mm-per-prompt "image=1" \
                         --enable-lora \
-                        --lora-modules "${model_name}=${ckp_path}"
+                        --lora-modules "${model_name}=${ckp_path}" \
+                        --enable-prefix-caching
                         # --enforce-eager  \
                         # --disable-log-requests \
                         # --tensor-parallel-size 2
