@@ -249,6 +249,16 @@ def train():
     else:
         raise ValueError(f"dataset type {args.dataset_type} is not supported")
     
+    if accelerator.is_main_process:
+        print('==============************************================')
+        print('>>> len of train_dataset:', len(train_dataset))
+        print('>>> per_device_train_batch_size: ', args.per_device_train_batch_size)
+        print('>>> num_train_epochs: ', args.num_train_epochs)
+        print('>>> num gpu: ', n_gpus)
+        print('>>> gradient_accumulation_steps: ', args.gradient_accumulation_steps)
+        print('>>> global batch size: ', args.per_device_train_batch_size * n_gpus * args.gradient_accumulation_steps)
+        print('>>> training steps: ', len(train_dataset) * args.num_train_epochs // (args.per_device_train_batch_size * n_gpus * args.gradient_accumulation_steps) )
+        print('==============************************================')
     
     if accelerator.is_main_process:
         print(f"train dataset size: {len(train_dataset)}")
@@ -258,6 +268,7 @@ def train():
             print(processor.apply_chat_template(sample['messages'], tokenize=False, add_generation_prompt=False))
         elif args.dataset_type == 'grounding' or args.dataset_type == 'loc2func':
             print(processor.apply_chat_template(sample['conv_lst'], tokenize=False, add_generation_prompt=False))
+            # TODO: add vis for loc2func dataset
             img = np.array(sample['img'])
             save_image(img, f'sample_img_{args.run_name}.jpg')
             if args.dataset_type == 'grounding':
