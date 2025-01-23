@@ -30,9 +30,9 @@ def process_elements(data, element_per_list):
     return all_data
 
 if __name__ == '__main__':
-    input_file_path = '/home/shaotao/PROJECTS/VLM_AND_PHONE/baseline_data/ppocr/mac_ppocr_train.json'
-    output_file_path = '/home/shaotao/PROJECTS/VLM_AND_PHONE/baseline_data/ppocr/mac_ppocr_train_splited.json'
-    ele_per_list = 7
+    input_file_path = '/home/shaotao/PROJECTS/VLM_AND_PHONE/final_ablu_data/desktop_ocr_elements.json'
+    output_file_path = input_file_path.replace('.json', '-split.json')
+    ele_per_list = 5
     data = read_json(input_file_path)
     processed_data = process_elements(data, element_per_list=ele_per_list)
     write_json(output_file_path, processed_data)

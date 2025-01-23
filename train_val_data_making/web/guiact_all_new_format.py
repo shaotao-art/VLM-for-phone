@@ -1,9 +1,27 @@
-import pandas as pd
+"""out data format:
+[
+    {
+        "img_url": "img_path",
+        "element": [
+            {
+                "instruction": "click",
+                "bbox": [0.1, 0.2, 0.3, 0.4],
+                "point": [0.2, 0.3],
+                "text": "text"
+            },
+            ...
+        ]
+    },
+    ...
+]
+"""
 import os
 import sys
+PROJECT_ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(PROJECT_ROOT)
 from tqdm import tqdm
+import pandas as pd
 
-sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE')
 from utils.file_utils import save_json
 
 
@@ -17,7 +35,7 @@ def get_if_click(line):
 if __name__ == '__main__':
     json_p = '/home/shaotao/DATA/GUIAct/web-single_train_data.json'
     img_root = '/home/shaotao/DATA/GUIAct/guiact-single'
-    out_json_p = 'gui-act-single-all-new-format.json'
+    out_json_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/final_ablu_data/grounding_guiact-single.json'
     df = pd.read_json(json_p)
     # get only clickable elements
     df['clickable'] = df['actions_label'].apply(get_if_click)

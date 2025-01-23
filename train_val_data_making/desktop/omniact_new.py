@@ -1,12 +1,27 @@
-import pandas as pd
-import json
+"""out data format:
+[
+    {
+        "img_url": "img_path",
+        "element": [
+            {
+                "instruction": "click",
+                "bbox": [0.1, 0.2, 0.3, 0.4],
+                "point": [0.2, 0.3],
+                "text": "text"
+            },
+            ...
+        ]
+    },
+    ...
+]
+"""
 import os
-import ast
-from tqdm import tqdm
 import sys
-from matplotlib import pyplot as plt
+PROJECT_ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(PROJECT_ROOT)
+import pandas as pd
+from tqdm import tqdm
 
-sys.path.append(os.path.dirname(os.path.abspath('..')))
 from utils.file_utils import read_image, read_json, save_image, save_json
 from utils.draw_utils import draw_box
 from utils.helper_utils import float2_0_1000
@@ -18,8 +33,6 @@ if __name__ == '__main__':
     out_json_p = 'omniact-100-train.json'
     data = read_json(data_p)
     data = pd.DataFrame(data)
-    print(data.columns, data.shape)
-    # import pdb; pdb.set_trace()
     
     init_prompt = ground_prompt_for_train
     continue_prompt = ground_prompt_continue

@@ -1,13 +1,31 @@
+"""out data format:
+[
+    {
+        "img_url": "img_path",
+        "element": [
+            {
+                "instruction": "click",
+                "bbox": [0.1, 0.2, 0.3, 0.4],
+                "point": [0.2, 0.3],
+                "text": "text"
+            },
+            ...
+        ]
+    },
+    ...
+]
+"""
 import sys
 import os
-sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE')
-# sys.path.append('/Users/starfish/Desktop/VLM_AND_PHONE')
+PROJECT_ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(PROJECT_ROOT)
 
 from tqdm import tqdm
 import pandas as pd
-from matplotlib import pyplot as plt
-from utils.file_utils import read_image, read_json, save_json, read_pkl
+import random
+from utils.file_utils import read_json, save_json, read_pkl
 
+random.seed(42)
 
 
 if __name__ == '__main__':
@@ -16,27 +34,14 @@ if __name__ == '__main__':
     shape_pkl_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/train_val_data_making/amex/amex_img_shapes.pkl'
     df_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/train_val_data_making/amex/amex_has_func_ann.xlsx'
     ele_per_diag = 10000
-    out_json_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/baseline_data/new_format/amex_data.json'
-
-    # img_root = ''
-    # ann_root = '/Users/starfish/Downloads/element_anno'
-    # shape_pkl_p = '/Users/starfish/Desktop/VLM_AND_PHONE/train_val_data_making/amex/amex_img_shapes.pkl'
-    # df_p = '/Users/starfish/Desktop/VLM_AND_PHONE/train_val_data_making/amex/amex_has_func_ann.xlsx'
-    # ele_per_diag = 10000
-    # out_json_p = '/Users/starfish/Desktop/VLM_AND_PHONE/baseline_data/new_format/amex_data.json'
-
-    
+    out_json_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/final_ablu_data/grounding_amex.json'
 
     df = pd.read_excel(df_p)
-    df = df[df['num_has_func'] > 2]
+    df = df[df['num_has_func'] >= 2]
     # get ori img shape dict
     img_shape_dict = read_pkl(shape_pkl_p)
-
-
-    import random
-    random.seed(42)
-    all_datas = []
     
+    all_datas = []
     for img_idx in tqdm(range(df.shape[0])):
         one_img = dict()
         ann_p = os.path.join(ann_root, df.iloc[img_idx]['json_file'])
@@ -47,10 +52,6 @@ if __name__ == '__main__':
         
         click_ele_lst = ann['clickable_elements']
         h, w = img_shape_dict[img_p]
-        # img_p = os.path.join(img_root, img_p)
-        # if img_idx % 500 == 0:
-            # img = read_image(img_p)
-
         
         # get all clickable elements with functionality
         random.shuffle(click_ele_lst)
