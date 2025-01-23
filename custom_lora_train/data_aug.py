@@ -55,7 +55,7 @@ def random_crop_metadata(img, metadata, scale_range=(0.5, 1.0)):
     new_elements = []
     for element in metadata['element']:
         bbox = element['bbox']
-        point = element['point']
+        point = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
 
         bbox_abs = [int(bbox[0] * original_width) + pad_x, int(bbox[1] * original_height) + pad_y,  
                     int(bbox[2] * original_width) + pad_x, int(bbox[3] * original_height) + pad_y]

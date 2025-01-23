@@ -6,7 +6,9 @@ import os
 import sys
 from PIL import Image
 import numpy as np
+import warnings
 from typing import List
+warnings.simplefilter('once', UserWarning)
 
 # sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE/')
 sys.path.append('/Users/starfish/Desktop/VLM_AND_PHONE')
@@ -111,12 +113,21 @@ class GroundingDataset(Dataset):
         metadata = self.data[idx]
         img_p = os.path.join(self.img_root, metadata['img_url'])
         img = Image.open(img_p).convert('RGB')
+        
         if self.crop_min != 1.0 or self.crop_max != 1.0:
             img, metadata = random_crop_metadata(img, metadata, (self.crop_min, self.crop_max))
             # img.save(f'cropped_img_{idx}.jpg')
+        
+        if metadata['element'][0].get('instruction') is not None:
+            inst_lst = [_['instruction'] for _ in metadata['element']]
+        else:
+            warnings.warn(f'No instruction in metadata, using text as instruction!', UserWarning)
+            inst_lst = [_['text'].strip() for _ in metadata['element']]
+        
+        box_lst = [_['bbox'] for _ in metadata['element']]
+        pt_lst = [((box[0] + box[2]) / 2, (box[1] + box[3]) / 2) for box in box_lst]
+    
 
-        inst_lst = [_['instruction'] for _ in metadata['element']]
-        pt_lst = [_['point'] for _ in metadata['element']]
         # shuffle inst_lst and pt_lst
         shuffle_idx = list(range(len(inst_lst)))
         random.shuffle(shuffle_idx)
