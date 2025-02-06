@@ -1,3 +1,4 @@
+"""make aitw test data"""
 import json
 import sys
 import os

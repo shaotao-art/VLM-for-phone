@@ -268,6 +268,8 @@ def train():
             print(processor.apply_chat_template(sample['messages'], tokenize=False, add_generation_prompt=False))
         elif args.dataset_type == 'grounding' or args.dataset_type == 'loc2func':
             print(processor.apply_chat_template(sample['conv_lst'], tokenize=False, add_generation_prompt=False))
+            # print(processor.apply_chat_template(train_dataset[1000]['input_ids']['conv_lst'], tokenize=False, add_generation_prompt=False))
+            # print(processor.apply_chat_template(train_dataset[-1000]['input_ids']['conv_lst'], tokenize=False, add_generation_prompt=False))
             # TODO: add vis for loc2func dataset
             img = np.array(sample['img'])
             save_image(img, f'sample_img_{args.run_name}.jpg')

@@ -204,7 +204,7 @@ class Loc2FuncDataset(Dataset):
         inst_lst = [_['instruction'] for _ in metadata['element']]
         pt_lst = [_['bbox'] for _ in metadata['element']]
         if self.use_ocr:
-            text_lst = [_['text'] for _ in metadata['element']]
+            text_lst = [_.get('text', 'null') for _ in metadata['element']]
         # shuffle inst_lst and pt_lst
         shuffle_idx = list(range(len(inst_lst)))
         random.shuffle(shuffle_idx)

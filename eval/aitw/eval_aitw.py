@@ -138,3 +138,7 @@ if __name__ == '__main__':
     }
     # save into json file
     save_json(res, out_file_p)
+
+    df = pd.DataFrame(cm_data[1:], columns=cm_data[0])
+    df.to_csv(out_file_p.replace('.json', '.csv'), index=False)
+

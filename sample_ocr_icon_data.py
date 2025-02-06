@@ -88,12 +88,12 @@ def weighted_sampling(elements: list[dict],
 
 
 if __name__ == '__main__':
-    icon_data_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/final_ablu_data/os-altas-desktop-icons.json'
-    ocr_data_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/final_ablu_data/os-altas-desktop-ppocr.json'
+    icon_data_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/out/01-26/box2func-web-1/desktop-icon-box2func-web-1-grounding.json'
+    ocr_data_p = '/home/shaotao/PROJECTS/VLM_AND_PHONE/out/01-26/box2func-web-2/desktop-text-box2func-web-2-grounding.json'
     img_root = '/home/shaotao/DATA/os-altas/desktop-merged'
     max_num_ele = 30 # max number of elements to sample
-    ocr_out_p = 'desktop_ocr_elements.json'
-    icon_out_p = 'desktop_icon_elements.json'
+    icon_out_p = 'box2func-guiact-desktop_icon_elements.json'
+    ocr_out_p = 'box2func-guiact-desktop_ocr_elements.json'
 
     icon_data = pd.read_json(icon_data_p)
     ocr_data = pd.read_json(ocr_data_p)

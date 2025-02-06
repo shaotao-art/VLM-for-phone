@@ -164,6 +164,9 @@ if __name__ == '__main__':
                 ann = sample[step_idx]
                 instruction = ann['goal']
                 img_filename = f"{ann['img_filename']}.png"
+                img_p = os.path.join(img_root, img_filename)
+                img = read_image(img_p)
+                save_image(img, f'{step_idx}.png')
                 
                 cot = None
                 if cot_ann_p is not None:
@@ -212,13 +215,11 @@ if __name__ == '__main__':
                     conversation.append({'from': 'gpt', 'value': gt})
                 line = {'conversation': conversation, 'image_lst': [img_filename]}
                 all_data.append(line)
-                # print('>>>>> sample')
-                # print(line['conversation'][0]['value'])
-                # print(line['conversation'][1]['value'])
+                print('>>>>> sample')
+                print(line['conversation'][0]['value'])
+                print(line['conversation'][1]['value'])
                 # break
-            # break
-        # break
+            break
+        break
     print(f'>>> total data num: {len(all_data)}')
-    save_json(all_data, out_json_p)
-
-
+    # save_json(all_data, out_json_p)

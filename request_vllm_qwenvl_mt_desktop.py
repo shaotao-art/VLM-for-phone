@@ -22,55 +22,77 @@ from typing import Tuple
 from utils.file_utils import (read_image, 
                               read_json, 
                               save_json, 
-                              get_image_base64)
+                              get_image_base64,
+                              save_image)
 from utils.img_ops import resize_image_short_side, smart_resize
 from utils.draw_utils import draw_box
 from utils.helper_utils import print_args, get_date_str
 from prompts import all_prompts
 
 
-def preprocess_image(img: np.ndarray, 
-                     box_int: Tuple[int, int, int, int],
-                     use_phone_crop: bool, 
-                     vis: bool) -> np.ndarray:
-    """- whether to use phone crop or not
-    - whether to visualize the box or not"""
-    if use_phone_crop:
-        # crop the image based on the box to make a phone size image
-        h, w = img.shape[:2]
-        box_in_float = [_ / 1000 for _ in box_int]
-        box_in_pixel = box_in_float[0] * w, box_in_float[1] * h, box_in_float[2] * w, box_in_float[3] * h
-        cent_x = (box_in_float[0] + box_in_float[2]) / 2
-        cent_x = int(w * cent_x)
-        x1 = max(cent_x - h // 4, 0)
-        x2 = x1 + h // 2
-        img = img[:, x1:x2, :]
-        
-        new_b_x1 = box_in_pixel[0] - x1
-        new_b_x2 = box_in_pixel[2] - x1
-        new_box = [new_b_x1, box_in_pixel[1], new_b_x2, box_in_pixel[3]]
-        patch_h, patch_w = img.shape[:2]
-        x1, y1, x2, y2 = new_box[0] / patch_w, new_box[1] / patch_h, new_box[2] / patch_w, new_box[3] / patch_h
-        if vis == True:
-            img = draw_box(img, (x1, y1, x2, y2), color=(255, 0, 0))
-    else:
-        box_in_float = [_ / 1000 for _ in box_int] 
-        if vis == True:
-            img = draw_box(img, box_in_float, color=(255, 0, 0))
-    return img
+def cut_image_by_box(image: np.ndarray, 
+                     box: Tuple[float, float, float, float], 
+                     margin: float = 0.1) -> Tuple[np.ndarray, Tuple[float, float, float, float]]:
+    """crop img according to the box"""
+    height, width = image.shape[:2]
+    
+    x1, y1, x2, y2 = [int(coord * dim) for coord, dim in zip(box, [width, height, width, height])]
+    
+    margin_x = int(margin * width)
+    margin_y = int(margin * height)
+    
+    center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
+    quad_x = int(center_x > width / 2)
+    quad_y = int(center_y > height / 2)
+    
+    quad_boundaries = {
+        (0, 0): ((-margin_x, width // 2 + margin_x), (-margin_y, height // 2 + margin_y)),
+        (1, 0): ((width // 2 - margin_x, width + margin_x), (-margin_y, height // 2 + margin_y)),
+        (0, 1): ((-margin_x, width // 2 + margin_x), (height // 2 - margin_y, height + margin_y)),
+        (1, 1): ((width // 2 - margin_x, width + margin_x), (height // 2 - margin_y, height + margin_y))
+    }
+    
+    quad_x_start, quad_x_end = quad_boundaries[(quad_x, quad_y)][0]
+    quad_y_start, quad_y_end = quad_boundaries[(quad_x, quad_y)][1]
+    
+    quad_x_start = min(quad_x_start, x1 - margin_x)
+    quad_x_end = max(quad_x_end, x2 + margin_x)
+    quad_y_start = min(quad_y_start, y1 - margin_y)
+    quad_y_end = max(quad_y_end, y2 + margin_y)
+    
+    quad_x_start, quad_x_end = max(0, quad_x_start), min(width, quad_x_end)
+    quad_y_start, quad_y_end = max(0, quad_y_start), min(height, quad_y_end)
+    
+    cut_image = image[quad_y_start:quad_y_end, quad_x_start:quad_x_end]
+    
+    cut_width = quad_x_end - quad_x_start
+    cut_height = quad_y_end - quad_y_start
+    
+    adjusted_x1 = max(0, x1 - quad_x_start) / cut_width
+    adjusted_y1 = max(0, y1 - quad_y_start) / cut_height
+    adjusted_x2 = min(x2 - quad_x_start, cut_width) / cut_width
+    adjusted_y2 = min(y2 - quad_y_start, cut_height) / cut_height
+    
+    adjusted_box = (adjusted_x1, adjusted_y1, adjusted_x2, adjusted_y2)
+    
+    return cut_image, adjusted_box
+
 
 def infer(client, 
           model_name,
-          prompt: str, 
-          img_p: str, 
-          box_int: Tuple[int, int, int, int], 
-          use_phone_crop: bool, 
+          line,
           vis: bool, 
           temprature: float):
+    img_filename = line['img_name']
+    box = line['bbox']
+    img_p = os.path.join(img_root, img_filename)
     image_np = read_image(img_p)
-    ori_img_shape = image_np.shape[:2]
-    h, w = ori_img_shape
-    image_np = preprocess_image(image_np, box_int, use_phone_crop, vis)
+    if use_crop: # use crop for all os systems
+        image_np, box = cut_image_by_box(image_np, box)
+    h, w = image_np.shape[:2]
+    if vis:
+        image_np = draw_box(image_np, box, thickness=5, color=(255, 0, 0))
+    
     if use_smart_resize:
         h_bar, w_bar = smart_resize(height=h, width=w, max_pixels=14 * 14 * 4 * max_img_tokens)
         image_np = cv2.resize(image_np, (w_bar, h_bar))
@@ -81,7 +103,19 @@ def infer(client,
         else:
             # pad
             image_np = resize_image_short_side(image_np, pad_img_short_side_size)
-        
+
+    int_box_lst = [int(_ * 1000) for _ in box]
+    if 'ocr' not in prompt_type:
+        prompt = PROMPT.format(x1=int_box_lst[0], 
+                        y1=int_box_lst[1], 
+                        x2=int_box_lst[2], 
+                        y2=int_box_lst[3]) 
+    else:
+        prompt = PROMPT.format(x1=int_box_lst[0], 
+                            y1=int_box_lst[1], 
+                            x2=int_box_lst[2], 
+                            y2=int_box_lst[3], 
+                            text=line.get('text', 'null'))
         
     chat_response = client.chat.completions.create(
         model=model_name,
@@ -104,7 +138,7 @@ def infer(client,
         seed=42
     )
     model_pred = chat_response.choices[0].message.content
-    return dict(pred=model_pred, img_shape=ori_img_shape)
+    return dict(pred=model_pred, img_shape=(h, w))
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run inference on images using OpenAI model.")
@@ -123,7 +157,7 @@ def parse_args():
     parser.add_argument('--out_json_p', type=str, required=True, help='Output JSON file path')
     parser.add_argument('--img_root', type=str, required=True, help='Root directory for images')
     parser.add_argument('--max_img_tokens', type=int, help='Maximum number of image tokens in test')
-    parser.add_argument('--use_phone_crop', action='store_true', help='Use phone crop for images')
+    parser.add_argument('--use_crop', action='store_true', help='Use croped images for high resolution imgs')
     parser.add_argument('--vis', action='store_true', help='Visualize the crop')
     return parser.parse_args()
 
@@ -145,7 +179,7 @@ if __name__ == '__main__':
     temprature = args.temprature
     num_thread = args.num_thread
     max_img_tokens = args.max_img_tokens
-    use_phone_crop = args.use_phone_crop
+    use_crop = args.use_crop
     vis = args.vis
     if use_smart_resize:
         assert phone_img_short_side_size == -1, "Cannot use both smart resize and fixed short side size"
@@ -168,38 +202,14 @@ if __name__ == '__main__':
     
 
     data = read_json(inp_json_p)
-    # preprocess all the box
-    int_box_lst = []
-    for d_idx in range(len(data)):
-        box = data[d_idx]['bbox']
-        int_box = [int(_ * 1000) for _ in box]
-        int_box_lst.append(int_box)
-    assert len(int_box_lst) == len(data)
-    
     # pack all params into list
     params = [(client, 
                 model_name,
-                PROMPT.format(x1=int_box_lst[d_idx][0], 
-                              y1=int_box_lst[d_idx][1], 
-                              x2=int_box_lst[d_idx][2], 
-                              y2=int_box_lst[d_idx][3]) \
-                    if 'ocr' not in prompt_type else \
-                        PROMPT.format(x1=int_box_lst[d_idx][0], 
-                                      y1=int_box_lst[d_idx][1], 
-                                      x2=int_box_lst[d_idx][2], 
-                                      y2=int_box_lst[d_idx][3], 
-                                      text=data[d_idx]['text']),
-                os.path.join(img_root,
-                            data[d_idx]['img_name']),
-                int_box_lst[d_idx],
-                use_phone_crop,
+                data[d_idx],
                 vis,
                 temprature) for d_idx in range(len(data))]
 
-    # params = params[:200]
-        
-    print('sample prompt:', params[0][2])
-    print('sample pred: ', infer(*params[0])['pred'])
+
     with ThreadPoolExecutor(max_workers=num_thread) as executor:
         # use map to keep the order of results
         results = list(tqdm(executor.map(lambda param: infer(*param), 

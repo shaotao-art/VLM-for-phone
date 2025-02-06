@@ -107,8 +107,8 @@ if __name__ == '__main__':
                 temprature) for d_idx in range(len(data))]
 
     # params = params[:20]
-    print('sample prompt: ', params[0][2])
-    model_pred = infer(*params[0])
+    print('sample prompt: ', params[2][2])
+    model_pred = infer(*params[2])
     print('sample prediction: ', model_pred)
     
     
