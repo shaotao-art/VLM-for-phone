@@ -15,9 +15,9 @@ logging.basicConfig(level=logging.INFO)
 
 if __name__ == '__main__':
     openai_api_key = "shaotao"
-    openai_api_base = "http://localhost:8001/v1"
+    openai_api_base = "http://localhost:8003/v1"
     # model_name = 'qwen2-vl-7b'
-    model_name = 'test'
+    model_name = 'guiact-box2func-som'
     prompt_type = 'box2func_with_som_test'
     # prompt_type = 'box2func_test'
     max_img_tokens = 1344
@@ -28,17 +28,17 @@ if __name__ == '__main__':
     )
     
     box_float = [
-                    0.6091098189353943,
-                    0.9429123997688293,
-                    0.6385723948478699,
-                    0.9862145185470581
-                ]
+            0.11221048235893201,
+            0.9452250599861141,
+            0.13958910107612602,
+            0.9910423159599301
+        ]
     box = [int(x * 1000) for x in box_float]
     prompt = all_prompts[prompt_type]
     prompt = prompt.format(x1=box[0], y1=box[1], x2=box[2], y2=box[3])
     
     
-    img = read_image("/home/shaotao/DATA/os-altas/linux-mac-merged/20240904_154245_screenshot.png")
+    img = read_image("/home/shaotao/DATA/os-altas/linux-mac-merged/20240905_143704_screenshot.png")
     if 'som' in prompt_type:
         img = draw_box(img, box_float, color=(255, 0, 0))
     img = smart_resize_img(img, max_img_tokens * 28 * 28)

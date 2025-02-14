@@ -12,7 +12,7 @@ from functools import partial
 from typing import List
 
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import PeftModel, LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import Trainer, TrainingArguments, BitsAndBytesConfig
 from accelerate import Accelerator
 from qwen_vl_utils import process_vision_info
@@ -21,7 +21,7 @@ from qwen_vl_utils import process_vision_info
 from prompts import all_prompts
 from utils.file_utils import save_image
 from utils.helper_utils import get_date_str
-from custom_dataset import GroundingDataset, Loc2FuncDataset, AgentDataset
+from custom_dataset import GroundingDataset, Loc2FuncDataset, AgentDataset, MixGroundingDataset
 
 random.seed(42)
 
@@ -159,6 +159,12 @@ def train():
     n_gpus = 0
     if torch.cuda.is_available():
         n_gpus = torch.cuda.device_count()
+    if n_gpus == 0:
+        args.attn_impl = 'sdpa'
+        if accelerator.is_main_process:
+            print("No GPU available, using 'sdpa' attention implementation")
+        
+        
     # print args in rank 0
     if accelerator.is_main_process:
         print("Training args:")
@@ -182,7 +188,7 @@ def train():
         )
         
 
-    model = Qwen2VLForConditionalGeneration.from_pretrained(
+    base_model = Qwen2VLForConditionalGeneration.from_pretrained(
         args.model_path,
         torch_dtype='auto',
         attn_implementation=args.attn_impl,
@@ -191,10 +197,17 @@ def train():
     )
     if args.qlora:
         model = prepare_model_for_kbit_training(model)
-    
-    if args.use_lora:
+        
+        
+    elif 'pretrained_lora_ckp' in args:
+        model = PeftModel.from_pretrained(base_model, 
+                                          args.pretrained_lora_ckp,
+                                          is_trainable=True)
+        print(f'loading lora weight from {args.pretrained_lora_ckp}')
+            
+    elif args.use_lora:
         # use lora to train, get peft model
-        lora_target_modules = get_lora_targets(model, 
+        lora_target_modules = get_lora_targets(base_model, 
                                                freeze_vision_tower=args.freeze_vision_tower,
                                                freeze_lm_head=args.freeze_lm_head)
         if accelerator.is_main_process:
@@ -205,8 +218,11 @@ def train():
             bias="none",
             task_type="CAUSAL_LM"
         )
-        model = get_peft_model(model, config)
+        model = get_peft_model(base_model, config)
         model.print_trainable_parameters()
+    
+    else:
+        raise NotImplementedError
     
     # Gradient checkpointing
     if args.gradient_checkpointing:
@@ -214,6 +230,7 @@ def train():
         model.gradient_checkpointing_enable()
 
 
+    
     # Load processor
     min_pixels = args.min_img_tokens*28*28
     max_pixels = args.max_img_tokens*28*28
@@ -246,6 +263,17 @@ def train():
     elif args.dataset_type == 'agent':
         train_dataset = AgentDataset(data_path=args.train_data_path,
                                      img_root=args.img_root)
+    elif args.dataset_type == 'mix_grounding':
+        train_dataset = MixGroundingDataset(data_path_lst=args.train_data_path_lst,
+                                            sample_p_lst=args.sample_p_lst,
+                                            len_dataset=args.len_dataset,
+                                            img_root=args.img_root,
+                                            init_prompt=all_prompts[args.init_prompt],
+                                            pt_format=args.pt_format,
+                                            ele_per_img=args.ele_per_img,
+                                            crop_min=args.crop_min,
+                                            crop_max=args.crop_max
+                                            )
     else:
         raise ValueError(f"dataset type {args.dataset_type} is not supported")
     
@@ -257,16 +285,16 @@ def train():
         print('>>> num gpu: ', n_gpus)
         print('>>> gradient_accumulation_steps: ', args.gradient_accumulation_steps)
         print('>>> global batch size: ', args.per_device_train_batch_size * n_gpus * args.gradient_accumulation_steps)
-        print('>>> training steps: ', len(train_dataset) * args.num_train_epochs // (args.per_device_train_batch_size * n_gpus * args.gradient_accumulation_steps) )
+        print('>>> training steps: ', len(train_dataset) * args.num_train_epochs // (args.per_device_train_batch_size * (n_gpus if n_gpus >= 1 else 1)  * args.gradient_accumulation_steps) )
         print('==============************************================')
     
     if accelerator.is_main_process:
         print(f"train dataset size: {len(train_dataset)}")
         print('sample data:')
-        sample = train_dataset[2]['input_ids']
+        sample = train_dataset[-20]['input_ids']
         if args.dataset_type == 'agent':
             print(processor.apply_chat_template(sample['messages'], tokenize=False, add_generation_prompt=False))
-        elif args.dataset_type == 'grounding' or args.dataset_type == 'loc2func':
+        elif args.dataset_type == 'grounding' or args.dataset_type == 'loc2func' or args.dataset_type == 'mix_grounding':
             print(processor.apply_chat_template(sample['conv_lst'], tokenize=False, add_generation_prompt=False))
             # print(processor.apply_chat_template(train_dataset[1000]['input_ids']['conv_lst'], tokenize=False, add_generation_prompt=False))
             # print(processor.apply_chat_template(train_dataset[-1000]['input_ids']['conv_lst'], tokenize=False, add_generation_prompt=False))

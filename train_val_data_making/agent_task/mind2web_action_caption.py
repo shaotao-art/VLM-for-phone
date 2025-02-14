@@ -18,22 +18,21 @@ from utils.helper_utils import print_args
 from prompts import all_prompts
 
 def format_his_info(action_his:List[str]):
-    # act_his_str = ''
-    # for his in action_his:
-    #     # print(type(his))
-    #     # print(his)
-    #     his_dict = ast.literal_eval(his)
-    #     # print(type(his_dict))
-    #     if 'action' in his_dict:
-    #         act_his_str += f"action: {his_dict['action']} "
-    #     if 'text' in his_dict:
-    #         # for type and select
-    #         act_his_str += f"action_type: {his_dict['action_type']}, point: {list(his_dict['point'])}, text: {his_dict['text']}\n"
-    #     else:
-    #         # for click
-    #         act_his_str += f"action_type: {his_dict['action_type']}, point: {list(his_dict['point'])}\n"
-    # return act_his_str.strip()
-    return '\n'.join(action_his).strip()
+    act_his_str = ''
+    for his in action_his:
+        # print(type(his))
+        # print(his)
+        his_dict = ast.literal_eval(his)
+        # print(type(his_dict))
+        if 'action' in his_dict:
+            act_his_str += f"action: {his_dict['action']} "
+        if 'text' in his_dict:
+            # for type and select
+            act_his_str += f"action_type: {his_dict['action_type']}, point: {his_dict['point']}, text: {his_dict['text']}\n"
+        else:
+            # for click
+            act_his_str += f"action_type: {his_dict['action_type']}, point: {his_dict['point']}\n"
+    return act_his_str.strip()
 
 def parse_action_type(ann):
     img_height, img_width = img_shapes[filename]
@@ -135,7 +134,7 @@ if __name__ == '__main__':
     
     all_ann = read_json(inp_json_p)
     img_shapes = read_pkl(img_shape_pkl_p)
-    PROMPT = all_prompts['agent_prompt']
+    PROMPT = all_prompts['agent_action_caption_mind2web']
     if cot_ann_p is not None:
         cot_ann = pd.read_excel(cot_ann_p)
         cot_ann.set_index('img_name', inplace=True)
@@ -168,8 +167,8 @@ if __name__ == '__main__':
                     # print('one img do not have multi-level ann, skipping...')
                     continue
                 # previous_actions = multi_level_ann_line['previous_actions']
-                observation = multi_level_ann_line.get('observation', 'null')
-                thought = multi_level_ann_line.get('thought', 'null')
+                observation = multi_level_ann_line['observation']
+                thought = multi_level_ann_line['thought']
                 action = multi_level_ann_line['action']
                 cot = dict(
                     observation=observation,
@@ -181,11 +180,6 @@ if __name__ == '__main__':
             if len(action_his) == 0:
                 act_his_str = 'null'
             
-                
-            prompt = PROMPT.format(instruction=instruction, 
-                                   action_history=act_his_str)
-            if '<image>' not in prompt:
-                prompt = '<image>' + prompt
             
             
             plain_answer = parse_action_type(ann)
@@ -203,6 +197,15 @@ if __name__ == '__main__':
                 answer = plain_answer
             # print('answer: ', answer)
             
+            prompt = PROMPT.format(instruction=instruction, 
+                                   action_history=act_his_str,
+                                   action_type=answer['action_type'],
+                                   point=answer['point'],
+                                   text=answer.get('text', 'null'))
+            if '<image>' not in prompt:
+                prompt = '<image>' + prompt
+            
+            
             # history format: action(optional), action_type, action_params   
             if hist_use_action:
                 hist_line = {'action': cot['action']}
@@ -210,14 +213,10 @@ if __name__ == '__main__':
             else:
                 hist_line = plain_answer
             # print('hist line: ', hist_line)
-            action_his.append(json.dumps(hist_line))
+            action_his.append(str(hist_line))
             conversation.append({'from': 'human', 'value': prompt})
-            conversation.append({'from': 'gpt', 'value': json.dumps(answer)})
-            # for test data add gt for evaluation
-            if 'test' in inp_json_p:
-                gt = make_test_gt(ann)
-                conversation.append({'from': 'gt', 'value': gt})
-            
+            if 'test' not in inp_json_p:
+                conversation.append({'from': 'gpt', 'value': cot['action']})
 
             line = {'conversation': conversation, 'image_lst': [img_filename]}
             all_data.append(line)

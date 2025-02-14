@@ -17,37 +17,40 @@ from utils.helper_utils import smart_resize, print_args, get_date_str
 
 
 def infer(client, model_name, prompt, img_p, temprature):
-    image_np = read_image(img_p)
-    if use_smart_resize:
-        h, w = image_np.shape[:2]
-        h, w = smart_resize(h, w, max_pixels=max_img_tokens * 28 * 28)
-        image_np = cv2.resize(image_np, (w, h))
-    else:
-        image_np = resize_image_short_side(image_np, img_short_side_size)
-    chat_response = client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": get_image_base64(image_np),
+    try:
+        image_np = read_image(img_p)
+        if use_smart_resize:
+            h, w = image_np.shape[:2]
+            h, w = smart_resize(h, w, max_pixels=max_img_tokens * 28 * 28)
+            image_np = cv2.resize(image_np, (w, h))
+        else:
+            image_np = resize_image_short_side(image_np, img_short_side_size)
+        chat_response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": get_image_base64(image_np),
+                            },
                         },
-                    },
-                    {"type": "text", "text": prompt},
-                ],
-            },
-        ],
-        temperature=temprature,
-        seed=42
-    )
-    model_pred = chat_response.choices[0].message.content
-    finish_reason = chat_response.choices[0].finish_reason
-    return dict(pred=model_pred, finish_reason=finish_reason)
-
+                        {"type": "text", "text": prompt},
+                    ],
+                },
+            ],
+            temperature=temprature,
+            seed=42
+        )
+        model_pred = chat_response.choices[0].message.content
+        finish_reason = chat_response.choices[0].finish_reason
+        return dict(pred=model_pred, finish_reason=finish_reason)
+    except Exception as e:
+        print(f"Error: {e}")
+        return dict(pred='', finish_reason='error')
 
 
 def get_args():
@@ -107,6 +110,10 @@ if __name__ == '__main__':
                 temprature) for d_idx in range(len(data))]
 
     # params = params[:20]
+    print('img_root: ', img_root)
+    print('img filename: ', data[2]['image_lst'][0])
+    print('sample img : ', os.path.join(img_root, data[2]['image_lst'][0]))
+    print('sample img path: ', params[2][3])
     print('sample prompt: ', params[2][2])
     model_pred = infer(*params[2])
     print('sample prediction: ', model_pred)

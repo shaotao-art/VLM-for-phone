@@ -64,7 +64,99 @@ def make_conv_lst(init_prompt: str,
         conv_lst.append(assistant_turn)
     return conv_lst
     
+class MixGroundingDataset(Dataset):
+    """ONLY work for ONE image
+    expected data format:
+    [{
+        "img_url": "path/to/img.jpg",
+        "element": [
+            {
+                "instruction": "instruction text",
+                "box": [x1, y1, x2, y2]
+                "point": [x, y]
+                "text": "text in element"
+            },
+            ...
+        ]
+    }
+    ...]
+    - cordinates are normlized to range 0-1
+    - text is optional 
+    - some small dataset may need data augmentation in grounding training
+    """
+    def __init__(self, 
+                 data_path_lst: List[str],
+                 sample_p_lst: List[float],
+                 len_dataset: int,
+                 img_root: str,
+                 init_prompt: str,
+                 pt_format: str,
+                 ele_per_img: int,
+                 crop_min: List[float],
+                 crop_max: List[float]):
+        super().__init__()
+        assert pt_format in ['float', 'int']
+        assert len(data_path_lst) == len(sample_p_lst) and len(data_path_lst) == len(crop_min) and len(data_path_lst) == len(crop_max)
+        self.sample_p_lst = sample_p_lst
+        self.sample_p_lst = [p / sum(sample_p_lst) for p in sample_p_lst]
+        self.data = []
+        for data_p in data_path_lst:
+            with open(data_p, "r") as f:
+                self.data.append(json.load(f))
+                print('loading data from: ', data_p, 'len: ', len(self.data[-1]))
+        self.img_root = img_root
+        self.len_dataset = len_dataset
+        print('warning: len_dataset is set to a fixed value:', len_dataset)
+        self.init_prompt = init_prompt
+        self.point_format = pt_format
+        self.element_per_img = ele_per_img # <= 0 means all elements
+        # data aug
+        self.crop_min = crop_min
+        self.crop_max = crop_max
+   
+    def __len__(self):
+        return self.len_dataset
 
+    def __getitem__(self, idx):
+        # idx is ignored
+        data_idx = np.random.choice(len(self.data), p=self.sample_p_lst)
+        sample_idx = np.random.randint(len(self.data[data_idx]))
+        metadata = self.data[data_idx][sample_idx]
+        img_p = os.path.join(self.img_root, metadata['img_url'])
+        img = Image.open(img_p).convert('RGB')
+        
+        if self.crop_min[data_idx] != 1.0 or self.crop_max[data_idx] != 1.0:
+            img, metadata = random_crop_metadata(img, metadata, (self.crop_min[data_idx], self.crop_max[data_idx]))
+            # img.save(f'cropped_img_{idx}.jpg')
+        
+        if metadata['element'][0].get('instruction') is not None:
+            inst_lst = [_['instruction'] for _ in metadata['element']]
+        else:
+            warnings.warn(f'No instruction in metadata, using text as instruction!', UserWarning)
+            inst_lst = [_['text'].strip() for _ in metadata['element']]
+        
+        box_lst = [_['bbox'] for _ in metadata['element']]
+        pt_lst = [((box[0] + box[2]) / 2, (box[1] + box[3]) / 2) for box in box_lst]
+    
+
+        # shuffle inst_lst and pt_lst
+        shuffle_idx = list(range(len(inst_lst)))
+        random.shuffle(shuffle_idx)
+        # random sample elements
+        if self.element_per_img > 0:
+            shuffle_idx = shuffle_idx[:self.element_per_img]
+        inst_lst = [inst_lst[i] for i in shuffle_idx]
+        pt_lst = [pt_lst[i] for i in shuffle_idx]
+        
+        if self.point_format == 'float':
+            pt_lst = [(round(pt[0], 2), round(pt[1], 2)) for pt in pt_lst]
+        elif self.point_format == 'int':
+            pt_lst = [(int(pt[0] * 1000), int(pt[1] * 1000)) for pt in pt_lst]
+        inst_lst = [f'Instruction: {inst}' for inst in inst_lst]
+        pt_lst = [f'[{pt[0]},{pt[1]}]' for pt in pt_lst]
+
+        conv_lst = make_conv_lst(self.init_prompt, inst_lst, pt_lst)
+        return dict(input_ids=dict(conv_lst=conv_lst, img=img))
 
 class GroundingDataset(Dataset):
     """ONLY work for ONE image

@@ -44,7 +44,7 @@ agent_prompt = """Please generate the next move according to the given screensho
 """
 
 
-agent_action_caption = """Based on the provided screenshot, user instruction, and historical information, infer the intention of user's current action.
+agent_action_caption_aitw = """Based on the provided screenshot, user instruction, and historical information, infer the intention of user's current action.
 ## Instruction:
 {instruction}
 
@@ -54,6 +54,18 @@ agent_action_caption = """Based on the provided screenshot, user instruction, an
 The information about the user's current action is as follows
 ## Current action:
 type: {action_type}, value: {action_value}
+"""
+
+agent_action_caption_mind2web = """Based on the provided screenshot, user instruction, and historical information, infer the intention of user's current action.
+## Instruction:
+{instruction}
+
+## Previous actions:
+{action_history}
+
+The information about the user's current action is as follows
+## Current action:
+type: {action_type}, point: {point}, text: {text}
 """
 
 
@@ -69,6 +81,7 @@ all_prompts = dict(
     box2func_with_som_test=box2func_with_som_test,
     box2func_with_ocr_test=box2func_with_ocr_test,
     box2func_with_ocr_and_som_test=box2func_with_ocr_and_som_test,
-    agent_action_caption=agent_action_caption,
-    agent_prompt=agent_prompt
+    agent_action_caption_aitw=agent_action_caption_aitw,
+    agent_prompt=agent_prompt,
+    agent_action_caption_mind2web=agent_action_caption_mind2web
 )

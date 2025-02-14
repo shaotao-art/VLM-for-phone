@@ -83,62 +83,66 @@ def infer(client,
           line,
           vis: bool, 
           temprature: float):
-    img_filename = line['img_name']
-    box = line['bbox']
-    img_p = os.path.join(img_root, img_filename)
-    image_np = read_image(img_p)
-    if use_crop: # use crop for all os systems
-        image_np, box = cut_image_by_box(image_np, box)
-    h, w = image_np.shape[:2]
-    if vis:
-        image_np = draw_box(image_np, box, thickness=5, color=(255, 0, 0))
-    
-    if use_smart_resize:
-        h_bar, w_bar = smart_resize(height=h, width=w, max_pixels=14 * 14 * 4 * max_img_tokens)
-        image_np = cv2.resize(image_np, (w_bar, h_bar))
-    else:
-        if h > w:
-            # phone
-            image_np = resize_image_short_side(image_np, phone_img_short_side_size)
+    try:
+        img_filename = line['img_name']
+        box = line['bbox']
+        img_p = os.path.join(img_root, img_filename)
+        image_np = read_image(img_p)
+        if use_crop: # use crop for all os systems
+            image_np, box = cut_image_by_box(image_np, box)
+        h, w = image_np.shape[:2]
+        if vis:
+            image_np = draw_box(image_np, box, thickness=5, color=(255, 0, 0))
+        
+        if use_smart_resize:
+            h_bar, w_bar = smart_resize(height=h, width=w, max_pixels=14 * 14 * 4 * max_img_tokens)
+            image_np = cv2.resize(image_np, (w_bar, h_bar))
         else:
-            # pad
-            image_np = resize_image_short_side(image_np, pad_img_short_side_size)
+            if h > w:
+                # phone
+                image_np = resize_image_short_side(image_np, phone_img_short_side_size)
+            else:
+                # pad
+                image_np = resize_image_short_side(image_np, pad_img_short_side_size)
 
-    int_box_lst = [int(_ * 1000) for _ in box]
-    if 'ocr' not in prompt_type:
-        prompt = PROMPT.format(x1=int_box_lst[0], 
-                        y1=int_box_lst[1], 
-                        x2=int_box_lst[2], 
-                        y2=int_box_lst[3]) 
-    else:
-        prompt = PROMPT.format(x1=int_box_lst[0], 
+        int_box_lst = [int(_ * 1000) for _ in box]
+        if 'ocr' not in prompt_type:
+            prompt = PROMPT.format(x1=int_box_lst[0], 
                             y1=int_box_lst[1], 
                             x2=int_box_lst[2], 
-                            y2=int_box_lst[3], 
-                            text=line.get('text', 'null'))
-        
-    chat_response = client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": get_image_base64(image_np),
+                            y2=int_box_lst[3]) 
+        else:
+            prompt = PROMPT.format(x1=int_box_lst[0], 
+                                y1=int_box_lst[1], 
+                                x2=int_box_lst[2], 
+                                y2=int_box_lst[3], 
+                                text=line.get('text', 'null'))
+            
+        chat_response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": get_image_base64(image_np),
+                            },
                         },
-                    },
-                    {"type": "text", "text": prompt},
-                ],
-            },
-        ],
-        temperature=temprature,
-        seed=42
-    )
-    model_pred = chat_response.choices[0].message.content
-    return dict(pred=model_pred, img_shape=(h, w))
+                        {"type": "text", "text": prompt},
+                    ],
+                },
+            ],
+            temperature=temprature,
+            seed=42
+        )
+        model_pred = chat_response.choices[0].message.content
+        return dict(pred=model_pred, img_shape=(h, w))
+    except Exception as e:
+        print(f"Error: {e}")
+        return dict(pred='Error', img_shape=(-1, -1))
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run inference on images using OpenAI model.")
@@ -209,12 +213,12 @@ if __name__ == '__main__':
                 vis,
                 temprature) for d_idx in range(len(data))]
 
-
+    # params = params[:200]
     with ThreadPoolExecutor(max_workers=num_thread) as executor:
         # use map to keep the order of results
         results = list(tqdm(executor.map(lambda param: infer(*param), 
                                          params),
-                            total=len(data)))
+                            total=len(params)))
 
         
     out = []

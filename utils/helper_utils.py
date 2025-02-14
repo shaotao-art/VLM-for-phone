@@ -1,9 +1,18 @@
+import sys
+sys.path.append('/home/shaotao/PROJECTS/VLM_AND_PHONE')
+
 from typing import List, Tuple
 import math
 import logging
 import torch
-
+import cv2
 from datetime import date
+from openai import OpenAI
+
+
+from utils.file_utils import read_image, get_image_base64
+
+
 
 def get_date_str():
     today = date.today()
@@ -55,3 +64,38 @@ def smart_resize(height: int,
 def get_num_img_tokens(height: int, width: int, factor: int = 28):
     h_bar, w_bar = smart_resize(height, width, factor)
     return h_bar / factor * w_bar / factor
+
+
+
+def request_vllm(model_name, prompt, img, temprature, num_img_tokens, openai_api_key, openai_api_base):
+    client = OpenAI(
+        api_key=openai_api_key,
+        base_url=openai_api_base,
+    )
+    h, w = img.shape[:2]
+    h, w = smart_resize(h, w, max_pixels=num_img_tokens * 28 * 28)
+    image_np = cv2.resize(img, (w, h))
+
+    chat_response = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": get_image_base64(image_np),
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            },
+        ],
+        temperature=temprature,
+        seed=42
+    )
+    model_pred = chat_response.choices[0].message.content
+    finish_reason = chat_response.choices[0].finish_reason
+    return model_pred

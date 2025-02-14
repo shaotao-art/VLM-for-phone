@@ -139,16 +139,14 @@ if __name__ == "__main__":
     # 初始化语言模型 (LLM)
     llm = LLM(
         model=MODEL_PATH,
-        limit_mm_per_prompt={"image": 10, "video": 10},
+        limit_mm_per_prompt={"image": 1, "video": 0},
         dtype='float16'
     )
     
     # 设置采样参数
     sampling_params = SamplingParams(
-        temperature=0.1,
-        top_p=0.001,
-        repetition_penalty=1.05,
-        max_tokens=256,
+        temperature=0.0,
+        max_tokens=1550,
         stop_token_ids=[],
     )
     out = infer_single_image_multi_turn(

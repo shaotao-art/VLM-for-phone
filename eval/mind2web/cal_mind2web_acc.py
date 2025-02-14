@@ -39,8 +39,8 @@ def parse_model_output(output_string):
     try:
         out = json.loads(output_string)
         # action and pt is a must in mind2web
-        action = out['action']
-        pt = out['pt']
+        action = out['action_type']
+        pt = out['point']
         text = out.get('text', '')
     except Exception as e:
         print(f"Error in parsing model output: {output_string}")
@@ -55,8 +55,6 @@ def get_metrices(row):
         gt_action, gt_box, gt_text = row['gt_action'], row['gt_box'], row['gt_text']
         if pred_action == gt_action:
             row['Op_match'] = True
-        # NOTE: all action in mind2web need output box
-        # NOTE: maybe a bug, ele_match do not consider whether action is match
         if (gt_box[0] <= pred_pt[0] <= gt_box[2]) and (gt_box[1] <= pred_pt[1] <= gt_box[3]):
             row['Ele_match'] = True
                 
@@ -67,8 +65,7 @@ def get_metrices(row):
         ref_str = gt_action
         if gt_action == 'select' or gt_action == 'type':
             ref_str += ' '
-            # NOTE: to compensate for problem in making data, need to fix later
-            ref_str += gt_text.lower().replace('"', "'")
+            ref_str += gt_text.lower()
         f1 = calculate_f1(pred_str, ref_str)
         row['Op_f1'] = f1
         if f1 == 1.0 and row['Ele_match'] == True:

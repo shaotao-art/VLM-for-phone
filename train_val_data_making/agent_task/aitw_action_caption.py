@@ -1,3 +1,4 @@
+"""aitw action caption dataset making"""
 import json
 import sys
 import os
@@ -165,8 +166,8 @@ if __name__ == '__main__':
                 instruction = ann['goal']
                 img_filename = f"{ann['img_filename']}.png"
                 img_p = os.path.join(img_root, img_filename)
-                img = read_image(img_p)
-                save_image(img, f'{step_idx}.png')
+                # img = read_image(img_p)
+                # save_image(img, f'{step_idx}.png')
                 
                 cot = None
                 if cot_ann_p is not None:

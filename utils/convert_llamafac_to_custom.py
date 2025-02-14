@@ -53,13 +53,16 @@ def transform_sharegpt_to_custom(original_data):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert ShareGPT data to custom format.')
     parser.add_argument('--input', type=str, required=True, help='Path to the input JSON file.')
-    parser.add_argument('--output', type=str, required=True, help='Path to the output JSON file.')
+    parser.add_argument('--output', type=str, required=False, help='Path to the output JSON file.')
     
     args = parser.parse_args()
     print_args(args)
     
     data_p = args.input
     out_data_p = args.output
+    if args.output is None:
+        out_data_p = data_p.replace('.json', '-converted.json')
+
     original_data = read_json(data_p)
     print('original data_num: ', len(original_data))
     transformed_data = transform_sharegpt_to_custom(original_data)

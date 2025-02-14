@@ -14,19 +14,21 @@ from utils.helper_utils import print_args
 from prompts import all_prompts
 
 def format_his_info(action_his:List[str]):
-    act_his_str = ''
-    for his in action_his:
-        # print(type(his))
-        # print(his)
-        his_dict = ast.literal_eval(his)
-        # print(type(his_dict))
-        if 'action' in his_dict:
-            act_his_str += f"action: {his_dict['action']} "
-        if 'action_value' not in his:
-            act_his_str += f"action_type: {his_dict['action_type']}\n"
-        else:
-            act_his_str += f"action_type: {his_dict['action_type']}, action_value: {his_dict['action_value']}\n"
-    return act_his_str.strip()
+    # act_his_str = ''
+    # for his in action_his:
+    #     # print(type(his))
+    #     # print(his)
+    #     his_dict = ast.literal_eval(his)
+    #     # print(type(his_dict))
+    #     if 'action' in his_dict:
+    #         act_his_str += f"action: {his_dict['action']} "
+    #     if 'action_value' not in his:
+    #         act_his_str += f"action_type: {his_dict['action_type']}\n"
+    #     else:
+
+    #         act_his_str += f"action_type: {his_dict['action_type']}, action_value: {list(his_dict['action_value'])}\n"
+    # return act_his_str.strip()
+    return '\n'.join(action_his).strip()
 
 def determine_swipe_direction(str_pt: Tuple[float, float], 
                               end_pt: Tuple[float, float]) -> str:
@@ -44,7 +46,7 @@ def determine_swipe_direction(str_pt: Tuple[float, float],
         else:
             return 'down'
 
-def parse_action_type(ann):
+def parse_action_type(ann: Dict[str, Any]) -> Dict[str, Any]:
     action_type_id = int(ann['action_type_id'])
     action_type_text = ann["action_type_text"]
     touch_pt = ann['touch']
@@ -170,15 +172,20 @@ if __name__ == '__main__':
                 if cot_ann_p is not None:
                     dir_name = os.path.dirname(img_filename)
                     filename = os.path.basename(img_filename)
-                    df_key = f"{dir_name}_{filename.replace('.png', '.jpg')}"
-                    try:
-                        multi_level_ann_line = cot_ann.loc[df_key]
-                    except:
+                    if f"{dir_name}_{filename}" in cot_ann.index:
+                        multi_level_ann_line = cot_ann.loc[f"{dir_name}_{filename}"]
+                    elif f"{dir_name}_{filename.replace('.png', '.jpg')}" in cot_ann.index:
+                        multi_level_ann_line = cot_ann.loc[f"{dir_name}_{filename.replace('.png', '.jpg')}"]
+                    elif f"{dir_name}/{filename}" in cot_ann.index:
+                        multi_level_ann_line = cot_ann.loc[f"{dir_name}/{filename}"]
+                    elif f"{dir_name}/{filename.replace('.png', '.jpg')}" in cot_ann.index:
+                        multi_level_ann_line = cot_ann.loc[f"{dir_name}/{filename.replace('.png', '.jpg')}"]
+                    else:
                         print('one img do not have multi-level ann, skipping...')
                         continue
                     # previous_actions = multi_level_ann_line['previous_actions']
-                    observation = multi_level_ann_line['observation']
-                    thought = multi_level_ann_line['thought']
+                    observation = multi_level_ann_line.get('observation', 'null')
+                    thought = multi_level_ann_line.get('thought', 'null')
                     action = multi_level_ann_line['action']
                     cot = dict(
                         observation=observation,
@@ -206,7 +213,9 @@ if __name__ == '__main__':
                         answer = deepcopy(cot)
                         answer.update(plain_answer)
                     elif answer_cot_level == 'null':
-                        answer = plain_answer                    
+                        answer = plain_answer 
+                    else:
+                        answer = plain_answer                  
                 else:
                     answer = plain_answer
                 # print('answer: ', answer)
@@ -218,7 +227,7 @@ if __name__ == '__main__':
                 else:
                     hist_line = plain_answer
                 # print('hist line: ', hist_line)
-                action_his.append(str(hist_line))
+                action_his.append(json.dumps(hist_line))
                 conversation.append({'from': 'human', 'value': prompt})
                 conversation.append({'from': 'gpt', 'value': json.dumps(answer)})
                 line = {'conversation': conversation, 'image_lst': [img_filename]}

@@ -18,7 +18,7 @@ from utils.file_utils import (read_image,
                               save_json, 
                               get_image_base64)
 from utils.img_ops import resize_image_short_side
-from utils.helper_utils import smart_resize, print_args
+from utils.helper_utils import smart_resize, print_args, get_date_str
 
 
 def infer(client, model_name, prompt, img_p, temprature):
@@ -59,7 +59,7 @@ def get_args():
     parser.add_argument('--api_key', type=str, default="shaotao", help='OpenAI API key')
     parser.add_argument('--api_base', type=str, default="http://localhost:8001/v1", help='OpenAI API base URL')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
-    parser.add_argument('--temprature', type=float, default=0.3, help='Temperature')
+    parser.add_argument('--temprature', type=float, default=0.0, help='Temperature')
     parser.add_argument('--num_thread', type=int, default=20, help='Number of threads')
     
     parser.add_argument('--model_name', type=str, required=True, help='Model name')
@@ -96,8 +96,14 @@ if __name__ == '__main__':
         )
     
     data = read_json(inp_json_p)
-    os.makedirs('out', exist_ok=True)
-    out_json_p = f'out/{out_json_p}'
+
+    day_str = get_date_str()
+    out_root = os.path.join('out', day_str, model_name)
+    os.makedirs(out_root, exist_ok=True)
+    out_json_p = os.path.join(out_root, args.out_json_p)
+    if os.path.exists(out_json_p):
+        print(f"Output file already exists: {out_json_p}")
+        sys.exit(0)
     
     # pack all params into list
     params = [(client, 
@@ -108,7 +114,9 @@ if __name__ == '__main__':
     if debug:
         params = params[:20]
     
-    
+    print('sample prompt:', params[2][2])
+    pred = infer(*params[2])
+    print('sample prediction:', pred)
     with ThreadPoolExecutor(max_workers=num_thread) as executor:
         # use map to keep the order of results
         results = list(tqdm(executor.map(lambda param: infer(*param), 
